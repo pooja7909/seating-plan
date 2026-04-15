@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classroom Seating Plan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;800&display=swap');
+
+  :root {
+    --bg: #f0ede8;
+    --surface: #faf9f7;
+    --border: #d4cfc8;
+    --text: #1a1816;
+    --muted: #7a746c;
+    --accent: #2d2d2d;
+
+    --c-empty: #e8e4df;
+    --c-empty-border: #ccc8c2;
+    --c-empty-text: #999;
+
+    --c-present: #d4edda;
+    --c-present-border: #82c996;
+    --c-present-text: #1a5c2e;
+
+    --c-absent: #fde8e8;
+    --c-absent-border: #f5a5a5;
+    --c-absent-text: #8b1a1a;
+
+    --c-focus: #fff3cd;
+    --c-focus-border: #f0c14b;
+    --c-focus-text: #6b4c00;
+
+    --c-support: #dce8ff;
+    --c-support-border: #85aef5;
+    --c-support-text: #1a3570;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .title-block h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    cursor: text;
+    outline: none;
+    border-bottom: 1.5px dashed transparent;
+    transition: border-color 0.15s;
+  }
+  .title-block h1:hover, .title-block h1:focus { border-color: var(--border); }
+
+  .title-block p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    cursor: text;
+    outline: none;
+    border-bottom: 1.5px dashed transparent;
+    transition: border-color 0.15s;
+  }
+  .title-block p:hover, .title-block p:focus { border-color: var(--border); }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1.5px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .legend-item:hover { opacity: 0.8; }
+
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text);
+  }
+  .btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: #444; }
+  .btn.danger { border-color: #f5a5a5; color: #8b1a1a; }
+  .btn.danger:hover { background: #fde8e8; color: #8b1a1a; border-color: #f5a5a5; }
+  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .room {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 20px 20px;
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .room-label {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: var(--surface);
+    padding: 0 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: text;
+    outline: none;
+    border-bottom: 1.5px dashed transparent;
+    transition: border-color 0.15s;
+  }
+  .room-label:hover, .room-label:focus { border-color: var(--border); }
+
+  .front {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 18px;
+    align-items: center;
+  }
+
+  .board {
+    background: #e0dbd4;
+    border: 1.5px solid #b8b2aa;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: text;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .board:hover, .board:focus { border-color: var(--accent); }
+  .board.main { flex: 1; max-width: 280px; }
+  .board.smart { background: #d0d8e8; border-color: #a0b0cc; color: #3a4a6a; flex: 0.7; max-width: 200px; }
+  .board.smart:hover, .board.smart:focus { border-color: #3a4a6a; }
+
+  .teacher-area {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 20px;
+    padding-left: 8px;
+  }
+
+  .teacher-desk {
+    background: #f5e6c8;
+    border: 1.5px dashed #d4a84b;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
+    color: #7a5a1a;
+    text-align: center;
+    letter-spacing: 0.5px;
+    cursor: text;
+    outline: none;
+    transition: background 0.15s;
+  }
+  .teacher-desk:hover { background: #f0d9a0; }
+
+  .grid-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 40px 1fr;
+    gap: 0;
+    align-items: start;
+  }
+
+  .row-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .aisle {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding-top: 4px;
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 1px;
+    writing-mode: vertical-rl;
+    opacity: 0.5;
+  }
+
+  .desk-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  /* Drag ghost placeholder */
+  .seat-ghost {
+    width: 90px;
+    min-height: 52px;
+    border-radius: 7px;
+    border: 2px dashed var(--c-empty-border);
+    background: transparent;
+    opacity: 0.4;
+  }
+
+  .seat {
+    width: 90px;
+    min-height: 52px;
+    border-radius: 7px;
+    border: 2px solid var(--c-empty-border);
+    background: var(--c-empty);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    cursor: grab;
+    transition: all 0.15s;
+    position: relative;
+    user-select: none;
+  }
+  .seat:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+  .seat.dragging { opacity: 0.3; cursor: grabbing; }
+  .seat.drag-over { box-shadow: 0 0 0 2px var(--accent); transform: scale(1.03); }
+  .seat.delete-mode { cursor: pointer; border-style: dashed; }
+  .seat.delete-mode:hover { background: #fde8e8; border-color: #f5a5a5; transform: none; }
+
+  .seat.status-present { background: var(--c-present); border-color: var(--c-present-border); }
+  .seat.status-absent  { background: var(--c-absent);  border-color: var(--c-absent-border); }
+  .seat.status-focus   { background: var(--c-focus);   border-color: var(--c-focus-border); }
+  .seat.status-support { background: var(--c-support); border-color: var(--c-support-border); }
+  .seat.status-empty   { background: var(--c-empty);   border-color: var(--c-empty-border); }
+
+  .seat-num {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    font-size: 9px;
+    color: var(--muted);
+    opacity: 0.7;
+    min-width: 18px;
+  }
+  .seat-num input {
+    width: 28px;
+    font-size: 9px;
+    font-family: 'DM Mono', monospace;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    text-align: right;
+    outline: none;
+    padding: 0;
+    cursor: text;
+  }
+  .seat-num input:focus { background: rgba(0,0,0,0.05); border-radius: 2px; }
+
+  .seat-name {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    text-align: center;
+    color: var(--text);
+    width: 100%;
+    word-break: break-word;
+    line-height: 1.3;
+    min-height: 16px;
+    margin-top: 10px;
+  }
+  .seat-name.empty-label { color: var(--c-empty-text); font-style: italic; font-size: 10px; }
+
+  .seat.status-present .seat-name { color: var(--c-present-text); }
+  .seat.status-absent  .seat-name { color: var(--c-absent-text); }
+  .seat.status-focus   .seat-name { color: var(--c-focus-text); }
+  .seat.status-support .seat-name { color: var(--c-support-text); }
+
+  .pc-icon { font-size: 10px; margin-bottom: 2px; opacity: 0.5; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    width: 300px;
+    border: 1.5px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .modal h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  .modal label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+
+  .modal input[type="text"] {
+    width: 100%;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+  }
+  .modal input[type="text"]:focus { border-color: var(--accent); }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .status-btn {
+    padding: 8px 6px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    font-size: 10px;
+    cursor: pointer;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+  }
+  .status-btn:hover { opacity: 0.85; }
+  .status-btn.selected { border-color: var(--accent) !important; font-weight: bold; }
+  .status-btn.s-empty   { background: var(--c-empty);   color: var(--c-empty-text);   border-color: var(--c-empty-border); }
+  .status-btn.s-present { background: var(--c-present); color: var(--c-present-text); border-color: var(--c-present-border); }
+  .status-btn.s-absent  { background: var(--c-absent);  color: var(--c-absent-text);  border-color: var(--c-absent-border); }
+  .status-btn.s-focus   { background: var(--c-focus);   color: var(--c-focus-text);   border-color: var(--c-focus-border); }
+  .status-btn.s-support { background: var(--c-support); color: var(--c-support-text); border-color: var(--c-support-border); }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-actions-right { display: flex; gap: 8px; }
+
+  .stats-bar {
+    display: flex;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .stat { font-size: 11px; color: var(--muted); }
+  .stat strong { color: var(--text); }
+
+  .print-note {
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+
+  .delete-badge {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 16px;
+    height: 16px;
+    background: #e24b4a;
+    color: white;
+    border-radius: 50%;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  @media print {
+    body { padding: 10px; background: white; }
+    .controls, .modal-overlay, .print-note, .toolbar-row { display: none !important; }
+    .seat { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1 contenteditable="true" spellcheck="false">Classroom Seating Plan</h1>
+    <p contenteditable="true" spellcheck="false">Click any seat to assign a name &amp; status — drag to rearrange</p>
+  </div>
+  <div class="controls">
+    <div class="legend">
+      <span style="font-size:11px;color:var(--muted);margin-right:4px;">Colour key:</span>
+      <div class="legend-item" style="background:var(--c-empty);border-color:var(--c-empty-border);">
+        <div class="legend-dot" style="background:var(--c-empty-border)"></div> Empty
+      </div>
+      <div class="legend-item" style="background:var(--c-present);border-color:var(--c-present-border);">
+        <div class="legend-dot" style="background:var(--c-present-border)"></div> Present
+      </div>
+      <div class="legend-item" style="background:var(--c-absent);border-color:var(--c-absent-border);">
+        <div class="legend-dot" style="background:var(--c-absent-border)"></div> Absent
+      </div>
+      <div class="legend-item" style="background:var(--c-focus);border-color:var(--c-focus-border);">
+        <div class="legend-dot" style="background:var(--c-focus-border)"></div> Needs Focus
+      </div>
+      <div class="legend-item" style="background:var(--c-support);border-color:var(--c-support-border);">
+        <div class="legend-dot" style="background:var(--c-support-border)"></div> Needs Support
+      </div>
+    </div>
+    <button class="btn danger" id="btn-delete" onclick="toggleDeleteMode()">🗑 Delete mode</button>
+    <button class="btn" onclick="addSeat()">+ Add seat</button>
+    <button class="btn" onclick="resetAll()">Reset All</button>
+    <button class="btn primary" onclick="window.print()">🖨 Print</button>
+  </div>
+</header>
+
+<div class="room">
+  <span class="room-label" contenteditable="true" spellcheck="false">Computer Lab</span>
+
+  <div class="front">
+    <div class="board main" contenteditable="true" spellcheck="false">Whiteboard</div>
+    <div class="board smart" contenteditable="true" spellcheck="false">Smart Board</div>
+    <div class="board main" contenteditable="true" spellcheck="false">Whiteboard</div>
+  </div>
+
+  <div class="teacher-area">
+    <div class="teacher-desk" contenteditable="true" spellcheck="false">🖥 Teacher's Desk</div>
+  </div>
+
+  <div class="grid-wrapper">
+    <div class="row-group" id="left-bank"></div>
+    <div class="aisle">AISLE</div>
+    <div class="row-group" id="right-bank"></div>
+  </div>
+</div>
+
+<div class="stats-bar" id="stats-bar">
+  <span class="stat">Total seats: <strong id="s-total">0</strong></span>
+  <span class="stat" style="color:var(--c-present-text)">Present: <strong id="s-present">0</strong></span>
+  <span class="stat" style="color:var(--c-absent-text)">Absent: <strong id="s-absent">0</strong></span>
+  <span class="stat" style="color:var(--c-focus-text)">Needs Focus: <strong id="s-focus">0</strong></span>
+  <span class="stat" style="color:var(--c-support-text)">Needs Support: <strong id="s-support">0</strong></span>
+  <span class="stat">Unassigned: <strong id="s-empty">0</strong></span>
+</div>
+
+<p class="print-note">💡 Tip: Use File → Print (or Ctrl+P) to print or save as PDF</p>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Edit Seat</h3>
+    <label>Computer Number</label>
+    <input type="text" id="modal-num" placeholder="e.g. 01" />
+    <label>Student Name</label>
+    <input type="text" id="modal-name" placeholder="Enter name..." />
+    <label>Status</label>
+    <div class="status-grid">
+      <div class="status-btn s-empty"   onclick="selectStatus('empty')"   id="sb-empty">Empty</div>
+      <div class="status-btn s-present" onclick="selectStatus('present')" id="sb-present">✓ Present</div>
+      <div class="status-btn s-absent"  onclick="selectStatus('absent')"  id="sb-absent">✗ Absent</div>
+      <div class="status-btn s-focus"   onclick="selectStatus('focus')"   id="sb-focus">⚑ Needs Focus</div>
+      <div class="status-btn s-support" onclick="selectStatus('support')" id="sb-support">★ Needs Support</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" onclick="deleteFromModal()">Delete seat</button>
+      <div class="modal-actions-right">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" onclick="saveModal()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+// seats: id -> { num, name, status, bank, row, col }
+let seats = {};
+let seatOrder = { L: [], R: [] }; // arrays of ids in row order
+let editingId = null;
+let modalStatus = 'empty';
+let deleteMode = false;
+let dragSrcId = null;
+let idCounter = 0;
+
+const LEFT_COLS = 4, RIGHT_COLS = 4, ROWS = 5;
+
+function newId() { return 'seat-' + (++idCounter); }
+
+// ── Build initial layout ──────────────────────────────────────────────────────
+function buildLayout() {
+  let n = 1;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < LEFT_COLS; c++) {
+      const id = newId();
+      seats[id] = { num: String(n++), name: '', status: 'empty', bank: 'L', row: r, col: c };
+      seatOrder.L.push(id);
+    }
+  }
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < RIGHT_COLS; c++) {
+      const id = newId();
+      seats[id] = { num: String(n++), name: '', status: 'empty', bank: 'R', row: r, col: c };
+      seatOrder.R.push(id);
+    }
+  }
+  renderAll();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderBank('L', LEFT_COLS);
+  renderBank('R', RIGHT_COLS);
+  updateStats();
+}
+
+function renderBank(bank, cols) {
+  const container = document.getElementById(bank === 'L' ? 'left-bank' : 'right-bank');
+  container.innerHTML = '';
+  const ids = seatOrder[bank];
+  for (let i = 0; i < ids.length; i += cols) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'desk-row';
+    rowEl.dataset.rowstart = i;
+    rowEl.dataset.bank = bank;
+    for (let j = i; j < Math.min(i + cols, ids.length); j++) {
+      rowEl.appendChild(makeSeatEl(ids[j]));
+    }
+    container.appendChild(rowEl);
+  }
+}
+
+function makeSeatEl(id) {
+  const s = seats[id];
+  const el = document.createElement('div');
+  el.className = 'seat status-' + s.status + (deleteMode ? ' delete-mode' : '');
+  el.id = 'el-' + id;
+  el.draggable = true;
+
+  if (deleteMode) {
+    const badge = document.createElement('div');
+    badge.className = 'delete-badge';
+    badge.textContent = '×';
+    el.appendChild(badge);
+  }
+
+  const numWrap = document.createElement('div');
+  numWrap.className = 'seat-num';
+  const numInput = document.createElement('input');
+  numInput.type = 'text';
+  numInput.value = s.num;
+  numInput.placeholder = '#';
+  numInput.title = 'Computer number';
+  numInput.addEventListener('mousedown', e => e.stopPropagation());
+  numInput.addEventListener('input', e => { seats[id].num = e.target.value; saveToStorage(); });
+  numWrap.appendChild(numInput);
+  el.appendChild(numWrap);
+
+  const pcIcon = document.createElement('span');
+  pcIcon.className = 'pc-icon';
+  pcIcon.textContent = '🖥';
+  el.appendChild(pcIcon);
+
+  const nameEl = document.createElement('div');
+  nameEl.className = s.name ? 'seat-name' : 'seat-name empty-label';
+  nameEl.textContent = s.name || 'Empty';
+  el.appendChild(nameEl);
+
+  // Click to edit (but not when dragging or in delete mode)
+  el.addEventListener('click', e => {
+    if (deleteMode) { deleteSeat(id); return; }
+    openModal(id);
+  });
+
+  // Drag events
+  el.addEventListener('dragstart', e => {
+    if (deleteMode) { e.preventDefault(); return; }
+    dragSrcId = id;
+    setTimeout(() => el.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    dragSrcId = null;
+    document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+  });
+  el.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (dragSrcId && dragSrcId !== id) el.classList.add('drag-over');
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    el.classList.remove('drag-over');
+    if (!dragSrcId || dragSrcId === id) return;
+    swapSeats(dragSrcId, id);
+  });
+
+  return el;
+}
+
+// ── Swap two seats ────────────────────────────────────────────────────────────
+function swapSeats(aId, bId) {
+  const aBank = seats[aId].bank, bBank = seats[bId].bank;
+  const aIdx = seatOrder[aBank].indexOf(aId);
+  const bIdx = seatOrder[bBank].indexOf(bId);
+
+  // swap in order arrays
+  seatOrder[aBank][aIdx] = bId;
+  seatOrder[bBank][bIdx] = aId;
+
+  // update bank metadata
+  seats[aId].bank = bBank;
+  seats[bId].bank = aBank;
+
+  renderAll();
+  saveToStorage();
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  editingId = id;
+  const s = seats[id];
+  document.getElementById('modal-title').textContent = 'Edit Seat' + (s.num ? ' #' + s.num : '');
+  document.getElementById('modal-num').value = s.num || '';
+  document.getElementById('modal-name').value = s.name || '';
+  selectStatus(s.status, false);
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-name').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  editingId = null;
+}
+
+function selectStatus(st, render = true) {
+  modalStatus = st;
+  ['empty','present','absent','focus','support'].forEach(s => {
+    document.getElementById('sb-' + s).classList.toggle('selected', s === st);
+  });
+}
+
+function saveModal() {
+  if (!editingId) return;
+  seats[editingId].num = document.getElementById('modal-num').value.trim();
+  seats[editingId].name = document.getElementById('modal-name').value.trim();
+  seats[editingId].status = modalStatus;
+  renderAll();
+  saveToStorage();
+  closeModal();
+}
+
+function deleteFromModal() {
+  if (!editingId) return;
+  if (!confirm('Delete this seat?')) return;
+  deleteSeat(editingId);
+  closeModal();
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+function deleteSeat(id) {
+  const bank = seats[id].bank;
+  seatOrder[bank] = seatOrder[bank].filter(x => x !== id);
+  delete seats[id];
+  renderAll();
+  saveToStorage();
+}
+
+function toggleDeleteMode() {
+  deleteMode = !deleteMode;
+  const btn = document.getElementById('btn-delete');
+  btn.classList.toggle('active', deleteMode);
+  btn.textContent = deleteMode ? '✓ Delete mode ON' : '🗑 Delete mode';
+  renderAll();
+}
+
+// ── Add seat ──────────────────────────────────────────────────────────────────
+function addSeat() {
+  const id = newId();
+  const total = seatOrder.L.length + seatOrder.R.length;
+  seats[id] = { num: String(total + 1), name: '', status: 'empty', bank: 'L', row: 0, col: 0 };
+  seatOrder.L.push(id);
+  renderAll();
+  saveToStorage();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const all = Object.values(seats);
+  document.getElementById('s-total').textContent = all.length;
+  document.getElementById('s-present').textContent = all.filter(s => s.status === 'present').length;
+  document.getElementById('s-absent').textContent = all.filter(s => s.status === 'absent').length;
+  document.getElementById('s-focus').textContent = all.filter(s => s.status === 'focus').length;
+  document.getElementById('s-support').textContent = all.filter(s => s.status === 'support').length;
+  document.getElementById('s-empty').textContent = all.filter(s => s.status === 'empty' || !s.name).length;
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetAll() {
+  if (!confirm('Reset all seats to empty? This cannot be undone.')) return;
+  Object.keys(seats).forEach(id => { seats[id].name = ''; seats[id].status = 'empty'; });
+  renderAll();
+  saveToStorage();
+}
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+function saveToStorage() {
+  try { localStorage.setItem('seating-plan-v2', JSON.stringify({ seats, seatOrder, idCounter })); } catch(e) {}
+}
+
+function loadFromStorage() {
+  try {
+    const d = localStorage.getItem('seating-plan-v2');
+    if (d) {
+      const parsed = JSON.parse(d);
+      seats = parsed.seats || seats;
+      seatOrder = parsed.seatOrder || seatOrder;
+      idCounter = parsed.idCounter || idCounter;
+      renderAll();
+    }
+  } catch(e) {}
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.getElementById('modal-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveModal();
+  if (e.key === 'Escape') closeModal();
+});
+
+document.getElementById('modal-num').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-name').focus();
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildLayout();
+loadFromStorage();
+</script>
+</body>
+</html>
