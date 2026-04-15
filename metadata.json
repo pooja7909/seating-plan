@@ -1,0 +1,6 @@
+{
+  "name": "Classroom Seating Planner",
+  "description": "A dynamic, editable classroom seating plan with drag-and-drop support, student groups, and status tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
