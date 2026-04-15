@@ -505,6 +505,24 @@ export default function App() {
         </header>
       )}
 
+      {/* Print Header */}
+      <div className="hidden print:block p-10 bg-white border-b-4 border-slate-200 mb-8">
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
+            <p className="text-lg font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 max-w-md justify-end">
+            {(Object.keys(STATUS_CONFIG) as StudentStatus[]).filter(s => s !== 'empty').map(status => (
+              <div key={status} className="flex items-center gap-2">
+                <div className={`w-5 h-5 rounded border-2 ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`} />
+                <span className="text-xs font-black uppercase tracking-tight">{STATUS_CONFIG[status].label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {isPrintMode && (
         <div className="fixed top-4 right-4 z-[100] print:hidden flex flex-col items-end gap-2">
           <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg text-xs font-bold text-slate-600">
@@ -935,12 +953,13 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode }:
       onClick={() => {
         if (isDeleteMode) onDelete();
       }}
-      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] ${config.bg} ${config.border} print:border-slate-300 print:bg-white print:shadow-none ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
+      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] ${config.bg} ${config.border} print:shadow-none ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
       style={{
         width: seat.width,
         height: seat.height,
         boxShadow: group ? `0 0 0 2px ${group.color}40, 0 4px 6px -1px rgb(0 0 0 / 0.1)` : undefined,
-        borderColor: group ? group.color : undefined
+        borderColor: group ? group.color : undefined,
+        borderWidth: group ? '3px' : '2px'
       }}
     >
       <div className="absolute -top-2 -right-2 bg-white border border-slate-200 rounded-full p-1 shadow-sm print:hidden">
@@ -957,10 +976,17 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode }:
       )}
 
       <div className="flex flex-col items-center gap-1 w-full pointer-events-none">
-        <Monitor size={14} className="text-slate-400 print:hidden" />
+        <div className="print:hidden">
+          {config.icon}
+        </div>
         <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900`}>
           {seat.studentName || 'Empty'}
         </span>
+        {seat.status !== 'empty' && (
+          <span className="hidden print:block text-[8px] uppercase font-black text-slate-500">
+            {config.label}
+          </span>
+        )}
       </div>
 
       {isDeleteMode && (
