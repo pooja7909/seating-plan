@@ -23,6 +23,10 @@ import {
   Square,
   Navigation,
   ChevronDown,
+  Copy,
+  ClipboardPaste,
+  FileDown,
+  FileUp,
   Undo2,
   Redo2
 } from 'lucide-react';
@@ -101,6 +105,7 @@ export default function App() {
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
+  const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const getCurrentState = (): ClassroomState => ({
@@ -148,6 +153,74 @@ export default function App() {
     setYearGroup(nextState.yearGroup);
     setSubject(nextState.subject);
     setClassCode(nextState.classCode);
+  };
+
+  const copySeat = (seat: SeatData) => {
+    setClipboard({
+      studentName: seat.studentName,
+      status: seat.status,
+      groupId: seat.groupId,
+      width: seat.width,
+      height: seat.height
+    });
+  };
+
+  const pasteSeat = (x: number, y: number) => {
+    if (!clipboard) return;
+    saveToHistory();
+    const newSeat: SeatData = {
+      id: `seat-${Date.now()}`,
+      studentName: clipboard.studentName || '',
+      status: clipboard.status || 'empty',
+      groupId: clipboard.groupId,
+      x: snapToGrid ? Math.round(x / GRID_SIZE) * GRID_SIZE : x,
+      y: snapToGrid ? Math.round(y / GRID_SIZE) * GRID_SIZE : y,
+      width: clipboard.width || 100,
+      height: clipboard.height || 70
+    };
+    setSeats([...seats, newSeat]);
+  };
+
+  const exportTemplate = () => {
+    const template = {
+      seats: seats.map(s => ({ ...s, studentName: '', status: 'empty', groupId: undefined })),
+      roomElements,
+      groups
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `layout-template-${subject}-${yearGroup}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        setConfirmModal({
+          isOpen: true,
+          title: 'Import Layout Template',
+          message: 'This will replace your current layout with the template. Student names will be cleared. Continue?',
+          onConfirm: () => {
+            saveToHistory();
+            setSeats(data.seats.map((s: any) => ({ ...s, id: `seat-${Math.random()}` })));
+            setRoomElements(data.roomElements.map((e: any) => ({ ...e, id: `element-${Math.random()}` })));
+            if (data.groups) setGroups(data.groups);
+            setConfirmModal(null);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to parse template', err);
+      }
+    };
+    reader.readAsText(file);
   };
 
   // Keyboard shortcuts
@@ -404,6 +477,25 @@ export default function App() {
                 Reset All
               </button>
 
+              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
+
+              <button 
+                onClick={exportTemplate}
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                title="Export Layout Template"
+              >
+                <FileDown size={16} />
+                Export
+              </button>
+
+              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer" title="Import Layout Template">
+                <FileUp size={16} />
+                Import
+                <input type="file" accept=".json" onChange={importTemplate} className="hidden" />
+              </label>
+
+              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
+
               <button 
                 onClick={handlePrint}
                 className="flex items-center gap-2 bg-[#1a1816] text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-all"
@@ -543,6 +635,15 @@ export default function App() {
         <div 
           ref={canvasRef}
           className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white"
+          onContextMenu={(e) => {
+            if (clipboard) {
+              e.preventDefault();
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (rect) {
+                pasteSeat(e.clientX - rect.left, e.clientY - rect.top);
+              }
+            }
+          }}
           style={{
             backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
             backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
@@ -576,6 +677,7 @@ export default function App() {
                 onDoubleClick={() => handleDoubleClick(seat, true)}
                 onDelete={() => deleteItem(seat.id, true)}
                 isDeleteMode={isDeleteMode}
+                onCopy={() => copySeat(seat)}
               />
             ))}
           </AnimatePresence>
@@ -928,9 +1030,10 @@ interface SeatProps {
   onDoubleClick: () => void;
   onDelete: () => void;
   isDeleteMode: boolean;
+  onCopy: () => void;
 }
 
-function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode }: SeatProps) {
+function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy }: SeatProps) {
   const config = STATUS_CONFIG[seat.status];
   
   return (
@@ -992,6 +1095,18 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode }:
       {isDeleteMode && (
         <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center rounded-xl pointer-events-none">
           <Trash2 size={24} className="text-red-600 opacity-50" />
+        </div>
+      )}
+
+      {!isDeleteMode && (
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onCopy(); }}
+            className="p-1 bg-white border border-slate-200 rounded shadow-sm hover:bg-slate-50 text-slate-400 hover:text-blue-500"
+            title="Copy Seat"
+          >
+            <Copy size={12} />
+          </button>
         </div>
       )}
     </motion.div>
