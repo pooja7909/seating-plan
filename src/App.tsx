@@ -1165,11 +1165,11 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
         <div className="print:hidden">
           {config.icon}
         </div>
-        <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900 print:text-[14px] print:font-black`}>
+        <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900 print:text-[14px] print:font-black print:overflow-visible print:whitespace-normal print:break-words`}>
           {seat.studentName || 'Empty'}
         </span>
         {seat.status !== 'empty' && (
-          <span className="hidden print:block text-[8px] uppercase font-black text-slate-500">
+          <span className="hidden text-[8px] uppercase font-black text-slate-500">
             {config.label}
           </span>
         )}
