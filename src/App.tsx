@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toJpeg } from 'html-to-image';
 import { 
   Plus, 
   Trash2, 
@@ -29,7 +30,8 @@ import {
   FileUp,
   Info,
   Undo2,
-  Redo2
+  Redo2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
@@ -37,11 +39,11 @@ const GRID_SIZE = 20;
 
 const YEAR_GROUPS = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
 const SUBJECTS = [
-  'Biology', 'Business Studies', 'Chemistry', 'Computer Science', 'Drama', 
-  'Economics', 'English', 'ESS', 'French', 'Geography', 'Guidance', 
-  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'Physics', 
-  'Science', 'Spanish'
-];
+  'Biology', 'Business Studies', 'Chemistry', 'Chinese A', 'Computer Science', 'Drama', 
+  'EAL', 'EAP', 'Economics', 'English', 'ESS', 'French', 'Geography', 'German', 'Guidance', 
+  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'Physics', 'Psychology',
+  'PE', 'Registration', 'Science', 'Spanish', 'Sports Science'
+].sort();
 
 const DEFAULT_GROUPS: StudentGroup[] = [
   { id: 'group-1', name: 'Group A', color: '#3b82f6' },
@@ -307,6 +309,28 @@ export default function App() {
     localStorage.setItem('classroom-seating-plan-v4', JSON.stringify(state));
   }, [seats, groups, roomElements, yearGroup, subject, classCode]);
 
+  const exportAsJpeg = async () => {
+    if (canvasRef.current) {
+      try {
+        // Temporarily hide UI elements that shouldn't be in the JPEG
+        const dataUrl = await toJpeg(canvasRef.current, { 
+          quality: 0.95, 
+          backgroundColor: '#faf9f7',
+          style: {
+            borderRadius: '0',
+            border: 'none'
+          }
+        });
+        const link = document.createElement('a');
+        link.download = `seating-plan-${subject}-${yearGroup}-${classCode || 'no-code'}.jpeg`;
+        link.href = dataUrl;
+        link.click();
+      } catch (err) {
+        console.error('Failed to export JPEG', err);
+      }
+    }
+  };
+
   const addSeat = () => {
     saveToHistory();
     const newSeat: SeatData = {
@@ -420,7 +444,7 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#f0ede8] text-[#1a1816] font-mono selection:bg-blue-100 print:bg-white print:text-black ${isPrintMode ? 'bg-white' : ''} print:h-screen print:flex print:flex-col print:overflow-hidden`}>
+    <div className={`min-h-screen bg-[#f0ede8] text-[#1a1816] font-mono selection:bg-blue-100 print:bg-white print:text-black ${isPrintMode ? 'bg-white' : ''} print:h-auto print:block print:overflow-visible`}>
       {/* Header */}
       {!isPrintMode && (
         <header className="px-8 py-6 max-w-[1400px] mx-auto print:hidden">
@@ -484,6 +508,15 @@ export default function App() {
                 className="px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all"
               >
                 Reset All
+              </button>
+
+              <button 
+                onClick={exportAsJpeg}
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                title="Save as JPEG"
+              >
+                <ImageIcon size={16} />
+                Save JPEG
               </button>
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1" />
@@ -622,11 +655,11 @@ export default function App() {
       )}
 
       {/* Print Header */}
-      <div className="hidden print:block p-6 bg-white border-b-4 border-slate-200 mb-4">
+      <div className="hidden print:block p-4 bg-white border-b-2 border-slate-200 mb-4">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
-            <p className="text-xl font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
+            <h1 className="text-3xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
+            <p className="text-lg font-bold text-slate-500 mt-1">{classCode || 'NO CLASS CODE'}</p>
           </div>
         </div>
       </div>
@@ -647,10 +680,10 @@ export default function App() {
       )}
 
       {/* Main Canvas */}
-      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:flex-1 print:overflow-hidden print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
+      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
         <div 
           ref={canvasRef}
-          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full print:h-full"
+          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full print-scale"
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
