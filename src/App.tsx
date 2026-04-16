@@ -477,25 +477,29 @@ export default function App() {
   const handleSaveAsPDF = async () => {
     if (!canvasRef.current) return;
     
-    setToast({ message: 'Generating PDF...', type: 'info' });
+    setToast({ message: 'Generating high-quality PDF...', type: 'info' });
     
     try {
       const originalTransform = canvasRef.current.style.transform;
       const originalWidth = canvasRef.current.style.width;
       
+      // Force dimensions for consistent capture
       canvasRef.current.style.transform = 'none';
       canvasRef.current.style.width = '1200px';
 
-      const dataUrl = await domToJpeg(canvasRef.current, {
-        scale: 2,
+      // Use PNG for PDF for better quality/reliability
+      const dataUrl = await domToPng(canvasRef.current, {
+        scale: 1.5, // Balanced for quality vs memory
         backgroundColor: '#ffffff',
       });
       
       canvasRef.current.style.transform = originalTransform;
       canvasRef.current.style.width = originalWidth;
 
+      // Initialize jsPDF with explicit orientation
+      const orientation = printOrientation === 'portrait' ? 'p' : 'l';
       const pdf = new jsPDF({
-        orientation: printOrientation === 'portrait' ? 'p' : 'l',
+        orientation: orientation,
         unit: 'mm',
         format: 'a4'
       });
@@ -503,35 +507,44 @@ export default function App() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // We want to fit 1200x800 into the PDF page width while keeping aspect ratio
       const imgProps = pdf.getImageProperties(dataUrl);
-      const outputWidth = pdfWidth - 20; // 10mm margins on sides
+      const outputWidth = pdfWidth - 20; // 10mm margins
       const outputHeight = (imgProps.height * outputWidth) / imgProps.width;
       
-      // If outputHeight exceeds page height, scale down further
       let finalWidth = outputWidth;
       let finalHeight = outputHeight;
-      const maxPageHeight = pdfHeight - 20; // 10mm margins top/bottom
+      const maxPageHeight = pdfHeight - 20;
       
       if (finalHeight > maxPageHeight) {
         finalHeight = maxPageHeight;
         finalWidth = (imgProps.width * finalHeight) / imgProps.height;
       }
       
-      // Center it on the page
       const xOffset = (pdfWidth - finalWidth) / 2;
       const yOffset = (pdfHeight - finalHeight) / 2;
       
-      pdf.addImage(dataUrl, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
+      pdf.addImage(dataUrl, 'PNG', xOffset, yOffset, finalWidth, finalHeight);
       
       const fileName = `${yearGroup} - ${classCode || 'NoCode'} - ${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
-      pdf.save(`${fileName}.pdf`);
       
-      setToast({ message: 'PDF saved successfully!', type: 'success' });
+      try {
+        pdf.save(`${fileName}.pdf`);
+        setToast({ message: 'PDF saved successfully!', type: 'success' });
+      } catch (saveError) {
+        // Fallback for restricted iframe downloads
+        console.warn('Standard PDF save failed, attempting data URL fallback', saveError);
+        const pdfData = pdf.output('datauristring');
+        const link = document.createElement('a');
+        link.href = pdfData;
+        link.download = `${fileName}.pdf`;
+        link.click();
+        setToast({ message: 'PDF saved via data fallback!', type: 'success' });
+      }
+      
       setTimeout(() => setToast(null), 3000);
     } catch (err) {
       console.error('Failed to save PDF', err);
-      setToast({ message: 'Error generating PDF.', type: 'info' });
+      setToast({ message: 'Error generating PDF. Try JPEG instead if this persists.', type: 'info' });
     }
   };
 
@@ -549,7 +562,7 @@ export default function App() {
       </style>
       {/* Header */}
       {!isPrintMode && (
-        <header className="px-4 md:px-8 py-4 md:py-6 max-w-[1400px] mx-auto print:hidden">
+        <header className="px-4 md:px-8 py-4 md:py-6 w-full print:hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
             <div className="flex flex-col">
               <h1 className="text-2xl md:text-4xl font-extrabold tracking-tighter uppercase font-sans">
@@ -781,6 +794,9 @@ export default function App() {
             <div className="text-[10px] text-slate-400 mt-1">
               Press <kbd className="bg-slate-100 px-1 rounded border border-slate-300">Ctrl+P</kbd> to print
             </div>
+            <div className="text-[9px] text-red-500 font-bold max-w-[150px] leading-tight mt-1">
+              * "Save as PDF" in Browser may be blocked in some views. Use the PDF button below.
+            </div>
             <div className="h-[1px] bg-slate-100 my-1" />
             <div className="flex gap-2">
               <button 
@@ -813,7 +829,7 @@ export default function App() {
       <main className={`relative p-4 md:p-8 overflow-auto h-[calc(100vh-220px)] md:h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
         <div 
           ref={canvasRef}
-          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none mx-auto print:bg-white print:static print:block ${isPrintMode ? (printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape') : ''}`}
+          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:bg-white print:static print:block ${isPrintMode ? (printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape') : ''}`}
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
