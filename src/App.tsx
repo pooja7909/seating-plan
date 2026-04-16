@@ -27,6 +27,7 @@ import {
   ClipboardPaste,
   FileDown,
   FileUp,
+  Info,
   Undo2,
   Redo2
 } from 'lucide-react';
@@ -111,6 +112,7 @@ export default function App() {
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const getCurrentState = (): ClassroomState => ({
@@ -168,6 +170,8 @@ export default function App() {
       width: seat.width,
       height: seat.height
     });
+    setToast({ message: 'Seat copied to clipboard!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
   };
 
   const pasteSeat = (x: number, y: number) => {
@@ -529,6 +533,21 @@ export default function App() {
                   <Redo2 size={18} />
                 </button>
               </div>
+
+              {clipboard && (
+                <button 
+                  onClick={() => {
+                    // Paste in the center of the visible area or at a default offset
+                    pasteSeat(100, 100);
+                    setToast({ message: 'Seat pasted!', type: 'success' });
+                    setTimeout(() => setToast(null), 2000);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-lg text-blue-600 text-sm font-bold hover:bg-blue-100 transition-all animate-pulse"
+                  title="Paste copied seat"
+                >
+                  <ClipboardPaste size={16} /> Paste Seat
+                </button>
+              )}
             </div>
           </div>
 
@@ -651,6 +670,14 @@ export default function App() {
             {yearGroup} {classCode && `- ${classCode}`} | {subject}
           </div>
 
+          {/* Paste Hint */}
+          {clipboard && !isPrintMode && (
+            <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold animate-bounce z-50 flex items-center gap-2">
+              <ClipboardPaste size={14} />
+              Right-click anywhere to paste!
+            </div>
+          )}
+
           {/* Room Elements */}
           {roomElements.map((element) => (
             <RoomElementComp 
@@ -680,6 +707,23 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm ${
+              toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 size={18} /> : <Info size={18} />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit Seat Modal */}
       {isEditModalOpen && editingSeat && (
@@ -717,7 +761,7 @@ export default function App() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Width (px)</label>
                   <input 
                     type="number" 
-                    value={editingSeat.width}
+                    value={editingSeat.width || ''}
                     onChange={(e) => setEditingSeat({ ...editingSeat, width: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
@@ -726,7 +770,7 @@ export default function App() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Height (px)</label>
                   <input 
                     type="number" 
-                    value={editingSeat.height}
+                    value={editingSeat.height || ''}
                     onChange={(e) => setEditingSeat({ ...editingSeat, height: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
@@ -789,15 +833,27 @@ export default function App() {
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <button 
-                onClick={() => deleteItem(editingSeat.id, true)}
-                className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-semibold transition-colors"
-              >
-                <Trash2 size={18} />
-                Delete Seat
-              </button>
-              <div className="flex gap-3">
+      <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        <div className="flex gap-4">
+          <button 
+            onClick={() => deleteItem(editingSeat.id, true)}
+            className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-semibold transition-colors"
+          >
+            <Trash2 size={18} />
+            Delete
+          </button>
+          <button 
+            onClick={() => {
+              copySeat(editingSeat);
+              setIsEditModalOpen(false);
+            }}
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-colors"
+          >
+            <Copy size={18} />
+            Copy
+          </button>
+        </div>
+        <div className="flex gap-3">
                 <button 
                   onClick={() => setIsEditModalOpen(false)}
                   className="px-4 py-2 text-slate-600 hover:text-slate-800 font-semibold text-sm"
@@ -848,7 +904,7 @@ export default function App() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Width (px)</label>
                   <input 
                     type="number" 
-                    value={editingElement.width}
+                    value={editingElement.width || ''}
                     onChange={(e) => setEditingElement({ ...editingElement, width: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
@@ -857,7 +913,7 @@ export default function App() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Height (px)</label>
                   <input 
                     type="number" 
-                    value={editingElement.height}
+                    value={editingElement.height || ''}
                     onChange={(e) => setEditingElement({ ...editingElement, height: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
@@ -1053,7 +1109,7 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
       onClick={() => {
         if (isDeleteMode) onDelete();
       }}
-      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] ${config.bg} ${config.border} print:shadow-none ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
+      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] group ${config.bg} ${config.border} print:shadow-none ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
       style={{
         width: seat.width,
         height: seat.height,
@@ -1096,13 +1152,16 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
       )}
 
       {!isDeleteMode && (
-        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+        <div className="absolute -top-2 -left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity print:hidden z-20">
           <button 
-            onClick={(e) => { e.stopPropagation(); onCopy(); }}
-            className="p-1 bg-white border border-slate-200 rounded shadow-sm hover:bg-slate-50 text-slate-400 hover:text-blue-500"
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              onCopy(); 
+            }}
+            className="p-1.5 bg-blue-600 border border-blue-700 rounded-lg shadow-lg text-white hover:bg-blue-700 transition-colors"
             title="Copy Seat"
           >
-            <Copy size={12} />
+            <Copy size={14} />
           </button>
         </div>
       )}
