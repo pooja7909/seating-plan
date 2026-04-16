@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { toJpeg } from 'html-to-image';
 import { 
   Plus, 
   Trash2, 
@@ -30,8 +29,7 @@ import {
   FileUp,
   Info,
   Undo2,
-  Redo2,
-  Image as ImageIcon
+  Redo2
 } from 'lucide-react';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
@@ -39,10 +37,10 @@ const GRID_SIZE = 20;
 
 const YEAR_GROUPS = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
 const SUBJECTS = [
-  'Biology', 'Business Studies', 'Chemistry', 'Chinese A', 'Computer Science', 'Drama', 
-  'EAL', 'EAP', 'Economics', 'English', 'ESS', 'French', 'Geography', 'German', 'Guidance', 
-  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'PE', 'Physics', 'Psychology',
-  'Registration', 'Science', 'Spanish', 'Sports Science'
+  'Biology', 'Business Studies', 'Chemistry', 'Computer Science', 'Drama', 
+  'Economics', 'English', 'ESS', 'French', 'Geography', 'Guidance', 
+  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'Physics', 
+  'Science', 'Spanish'
 ];
 
 const DEFAULT_GROUPS: StudentGroup[] = [
@@ -111,38 +109,11 @@ export default function App() {
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
-
-  const exportAsJpeg = async () => {
-    if (!exportRef.current) return;
-    
-    try {
-      const dataUrl = await toJpeg(exportRef.current, {
-        quality: 0.95,
-        backgroundColor: '#ffffff',
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left'
-        }
-      });
-      
-      const link = document.createElement('a');
-      link.download = `seating-plan-${subject}-${yearGroup}.jpeg`;
-      link.href = dataUrl;
-      link.click();
-      
-      setToast({ message: 'Layout saved as JPEG!', type: 'success' });
-    } catch (err) {
-      console.error('Failed to export JPEG', err);
-      setToast({ message: 'Failed to save JPEG', type: 'info' });
-    }
-  };
 
   const getCurrentState = (): ClassroomState => ({
     seats,
@@ -650,143 +621,92 @@ export default function App() {
         </header>
       )}
 
-      {/* Print View Container (for PDF and JPEG) */}
-      <div ref={exportRef} className={`${isPrintMode ? 'block' : 'hidden'} print:block bg-white h-full flex flex-col`}>
-        {/* Print Header */}
-        <div className="p-6 bg-white border-b-4 border-slate-200 mb-4">
-          <div className="flex justify-between items-end">
-            <div>
-              <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
-              <p className="text-xl font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
-            </div>
+      {/* Print Header */}
+      <div className="hidden print:block p-6 bg-white border-b-4 border-slate-200 mb-4">
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
+            <p className="text-xl font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
           </div>
         </div>
-
-        {/* Main Canvas */}
-        <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:flex-1 print:overflow-hidden print:static ${isPrintMode ? 'h-full p-0 flex-1' : ''}`}>
-          <div 
-            ref={canvasRef}
-            className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full print:h-full"
-            onContextMenu={(e) => {
-              if (clipboard) {
-                e.preventDefault();
-                const rect = canvasRef.current?.getBoundingClientRect();
-                if (rect) {
-                  pasteSeat(e.clientX - rect.left, e.clientY - rect.top);
-                }
-              }
-            }}
-            style={{
-              backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
-              backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
-            }}
-          >
-            {/* Room Label */}
-            <div className="absolute -top-3 left-8 bg-[#faf9f7] px-3 text-[10px] font-bold tracking-widest uppercase text-[#7a746c] z-10 print:bg-white print:text-black">
-              {yearGroup} {classCode && `- ${classCode}`} | {subject}
-            </div>
-
-            {/* Paste Hint */}
-            {clipboard && !isPrintMode && (
-              <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold animate-bounce z-50 flex items-center gap-2">
-                <ClipboardPaste size={14} />
-                Right-click anywhere to paste!
-              </div>
-            )}
-
-            {/* Room Elements */}
-            {roomElements.map((element) => (
-              <RoomElementComp 
-                key={element.id}
-                element={element}
-                onDragEnd={(x, y) => updatePosition(element.id, x, y, false)}
-                onDoubleClick={() => handleDoubleClick(element, false)}
-                onDelete={() => deleteItem(element.id, false)}
-                isDeleteMode={isDeleteMode}
-              />
-            ))}
-
-            {/* Seats */}
-            <AnimatePresence>
-              {seats.map((seat) => (
-                <Seat 
-                  key={seat.id}
-                  seat={seat}
-                  group={groups.find(g => g.id === seat.groupId)}
-                  onDragEnd={(x, y) => updatePosition(seat.id, x, y, true)}
-                  onDoubleClick={() => handleDoubleClick(seat, true)}
-                  onDelete={() => deleteItem(seat.id, true)}
-                  isDeleteMode={isDeleteMode}
-                  onCopy={() => copySeat(seat)}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        </main>
       </div>
 
       {isPrintMode && (
-        <style dangerouslySetInnerHTML={{ __html: `
-          @page { size: A4 ${printOrientation}; margin: 5mm; }
-        ` }} />
-      )}
-
-      {isPrintMode && (
-        <div className="fixed top-4 right-4 z-[100] print:hidden flex flex-col items-end gap-3">
-          <div className="bg-white/95 backdrop-blur shadow-2xl rounded-2xl border border-slate-200 p-4 flex flex-col gap-4 w-64">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Orientation</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button 
-                  onClick={() => setPrintOrientation('portrait')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${printOrientation === 'portrait' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                >
-                  Portrait
-                </button>
-                <button 
-                  onClick={() => setPrintOrientation('landscape')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${printOrientation === 'landscape' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                >
-                  Landscape
-                </button>
-              </div>
-            </div>
-
-            <div className="h-px bg-slate-100" />
-
-            <div className="flex flex-col gap-2">
-              <button 
-                onClick={() => window.print()}
-                className="flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:bg-slate-800 transition-all active:scale-95"
-              >
-                <Printer size={16} />
-                Print / Save PDF
-              </button>
-              <button 
-                onClick={exportAsJpeg}
-                className="flex items-center justify-center gap-2 bg-blue-50 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-100 transition-all active:scale-95"
-              >
-                <ImageIcon size={16} />
-                Save as JPEG
-              </button>
-            </div>
-
-            <div className="h-px bg-slate-100" />
-
-            <button 
-              onClick={() => setIsPrintMode(false)}
-              className="flex items-center justify-center gap-2 text-red-600 hover:text-red-700 font-bold text-xs py-1 transition-all"
-            >
-              <RotateCcw size={14} />
-              Exit Print Mode
-            </button>
+        <div className="fixed top-4 right-4 z-[100] print:hidden flex flex-col items-end gap-2">
+          <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg text-xs font-bold text-slate-600">
+            If the print dialog didn't open, press <kbd className="bg-slate-100 px-1 rounded border border-slate-300">Ctrl+P</kbd>
           </div>
-          
-          <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full text-[10px] font-bold text-white shadow-lg">
-            Tip: Press <kbd className="bg-slate-700 px-1 rounded mx-1">Ctrl+P</kbd> to print
-          </div>
+          <button 
+            onClick={() => setIsPrintMode(false)}
+            className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl hover:bg-red-700 transition-all active:scale-95"
+          >
+            <RotateCcw size={20} />
+            Exit Print Mode
+          </button>
         </div>
       )}
+
+      {/* Main Canvas */}
+      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:flex-1 print:overflow-hidden print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
+        <div 
+          ref={canvasRef}
+          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full print:h-full"
+          onContextMenu={(e) => {
+            if (clipboard) {
+              e.preventDefault();
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (rect) {
+                pasteSeat(e.clientX - rect.left, e.clientY - rect.top);
+              }
+            }
+          }}
+          style={{
+            backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
+            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
+          }}
+        >
+          {/* Room Label */}
+          <div className="absolute -top-3 left-8 bg-[#faf9f7] px-3 text-[10px] font-bold tracking-widest uppercase text-[#7a746c] z-10 print:bg-white print:text-black">
+            {yearGroup} {classCode && `- ${classCode}`} | {subject}
+          </div>
+
+          {/* Paste Hint */}
+          {clipboard && !isPrintMode && (
+            <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold animate-bounce z-50 flex items-center gap-2">
+              <ClipboardPaste size={14} />
+              Right-click anywhere to paste!
+            </div>
+          )}
+
+          {/* Room Elements */}
+          {roomElements.map((element) => (
+            <RoomElementComp 
+              key={element.id}
+              element={element}
+              onDragEnd={(x, y) => updatePosition(element.id, x, y, false)}
+              onDoubleClick={() => handleDoubleClick(element, false)}
+              onDelete={() => deleteItem(element.id, false)}
+              isDeleteMode={isDeleteMode}
+            />
+          ))}
+
+          {/* Seats */}
+          <AnimatePresence>
+            {seats.map((seat) => (
+              <Seat 
+                key={seat.id}
+                seat={seat}
+                group={groups.find(g => g.id === seat.groupId)}
+                onDragEnd={(x, y) => updatePosition(seat.id, x, y, true)}
+                onDoubleClick={() => handleDoubleClick(seat, true)}
+                onDelete={() => deleteItem(seat.id, true)}
+                isDeleteMode={isDeleteMode}
+                onCopy={() => copySeat(seat)}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      </main>
 
       {/* Toast Notification */}
       <AnimatePresence>
