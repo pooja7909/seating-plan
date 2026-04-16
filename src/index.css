@@ -27,11 +27,11 @@
     /* Scale content to fit A4 width */
     .print-scale-portrait {
       transform-origin: top left;
-      scale: 0.65; /* Fits 1200px into A4 Portrait */
+      scale: 0.8; /* Increased from 0.65 */
     }
     .print-scale-landscape {
       transform-origin: top left;
-      scale: 0.9; /* Fits 1200px into A4 Landscape */
+      scale: 1.1; /* Increased from 0.9 */
     }
   }
 }
