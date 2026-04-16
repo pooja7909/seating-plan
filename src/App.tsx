@@ -604,14 +604,6 @@ export default function App() {
             <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
             <p className="text-lg font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 max-w-md justify-end">
-            {(Object.keys(STATUS_CONFIG) as StudentStatus[]).filter(s => s !== 'empty').map(status => (
-              <div key={status} className="flex items-center gap-2">
-                <div className={`w-5 h-5 rounded border-2 ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`} />
-                <span className="text-xs font-black uppercase tracking-tight">{STATUS_CONFIG[status].label}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
