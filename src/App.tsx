@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { domToJpeg, domToPng } from 'modern-screenshot';
+import { jsPDF } from 'jspdf';
 import { 
   Plus, 
   Trash2, 
@@ -29,7 +31,8 @@ import {
   FileUp,
   Info,
   Undo2,
-  Redo2
+  Redo2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
@@ -434,6 +437,104 @@ export default function App() {
     }, 500);
   };
 
+  const handleSaveAsImage = async () => {
+    if (!canvasRef.current) return;
+    
+    setToast({ message: 'Generating image...', type: 'info' });
+    
+    try {
+      // Temporarily remove transform for clean capture
+      const originalTransform = canvasRef.current.style.transform;
+      const originalWidth = canvasRef.current.style.width;
+      
+      // Force dimensions and reset zoom for capture
+      canvasRef.current.style.transform = 'none';
+      canvasRef.current.style.width = '1200px';
+
+      const dataUrl = await domToJpeg(canvasRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      
+      // Restore state
+      canvasRef.current.style.transform = originalTransform;
+      canvasRef.current.style.width = originalWidth;
+
+      const link = document.createElement('a');
+      const fileName = `${yearGroup} - ${classCode || 'NoCode'} - ${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
+      link.download = `${fileName}.jpg`;
+      link.href = dataUrl;
+      link.click();
+      
+      setToast({ message: 'Image saved successfully!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      console.error('Failed to save image', err);
+      setToast({ message: 'Error generating image. Try again.', type: 'info' });
+    }
+  };
+
+  const handleSaveAsPDF = async () => {
+    if (!canvasRef.current) return;
+    
+    setToast({ message: 'Generating PDF...', type: 'info' });
+    
+    try {
+      const originalTransform = canvasRef.current.style.transform;
+      const originalWidth = canvasRef.current.style.width;
+      
+      canvasRef.current.style.transform = 'none';
+      canvasRef.current.style.width = '1200px';
+
+      const dataUrl = await domToJpeg(canvasRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      
+      canvasRef.current.style.transform = originalTransform;
+      canvasRef.current.style.width = originalWidth;
+
+      const pdf = new jsPDF({
+        orientation: printOrientation === 'portrait' ? 'p' : 'l',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // We want to fit 1200x800 into the PDF page width while keeping aspect ratio
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const outputWidth = pdfWidth - 20; // 10mm margins on sides
+      const outputHeight = (imgProps.height * outputWidth) / imgProps.width;
+      
+      // If outputHeight exceeds page height, scale down further
+      let finalWidth = outputWidth;
+      let finalHeight = outputHeight;
+      const maxPageHeight = pdfHeight - 20; // 10mm margins top/bottom
+      
+      if (finalHeight > maxPageHeight) {
+        finalHeight = maxPageHeight;
+        finalWidth = (imgProps.width * finalHeight) / imgProps.height;
+      }
+      
+      // Center it on the page
+      const xOffset = (pdfWidth - finalWidth) / 2;
+      const yOffset = (pdfHeight - finalHeight) / 2;
+      
+      pdf.addImage(dataUrl, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
+      
+      const fileName = `${yearGroup} - ${classCode || 'NoCode'} - ${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
+      pdf.save(`${fileName}.pdf`);
+      
+      setToast({ message: 'PDF saved successfully!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      console.error('Failed to save PDF', err);
+      setToast({ message: 'Error generating PDF.', type: 'info' });
+    }
+  };
+
   return (
     <div className={`min-h-screen bg-[#f0ede8] text-[#1a1816] font-mono selection:bg-blue-100 print:bg-white print:text-black ${isPrintMode ? 'bg-white' : ''} print:h-auto print:block print:overflow-visible`}>
       <style>
@@ -441,7 +542,7 @@ export default function App() {
           @media print {
             @page {
               size: A4 ${printOrientation};
-              margin: 5mm;
+              margin: 0;
             }
           }
         `}
@@ -457,15 +558,19 @@ export default function App() {
               <p className="text-[10px] md:text-xs text-[#7a746c] mt-1">
                 Double-click to edit • Drag to move • Click to delete (in delete mode)
               </p>
+              <div className="mt-2 text-[9px] md:text-[10px] text-blue-600 font-bold bg-blue-50/50 px-2 py-1 rounded inline-block">
+                Note: Print works best in Landscape & A4 for PDF/JPEG. If issues persist, take a screenshot, save as JPEG, and print.
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              <div className="flex items-center gap-2 mr-2 md:mr-4">
+              <div className="flex flex-wrap items-center gap-2 mr-2 md:mr-4">
                 <span className="text-[10px] md:text-xs text-[#7a746c] hidden sm:inline">Colour key:</span>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-2">
                   {(Object.keys(STATUS_CONFIG) as StudentStatus[]).map(status => (
-                    <div key={status} className={`w-6 h-6 rounded border ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border} flex items-center justify-center`} title={STATUS_CONFIG[status].label}>
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
+                    <div key={status} className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] md:text-xs font-semibold ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`}>
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
+                      <span>{STATUS_CONFIG[status].label}</span>
                     </div>
                   ))}
                 </div>
@@ -518,6 +623,24 @@ export default function App() {
               >
                 <Printer size={16} />
                 Print
+              </button>
+
+              <button 
+                onClick={handleSaveAsPDF}
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
+                title="Save as PDF"
+              >
+                <FileDown size={16} />
+                <span className="hidden sm:inline">PDF</span>
+              </button>
+
+              <button 
+                onClick={handleSaveAsImage}
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
+                title="Save as JPEG"
+              >
+                <ImageIcon size={16} />
+                <span className="hidden sm:inline">JPEG</span>
               </button>
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
@@ -641,9 +764,6 @@ export default function App() {
       {isPrintMode && (
         <div className="fixed top-4 right-4 z-[100] print:hidden flex flex-col items-end gap-2">
           <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg flex flex-col gap-2">
-            <div className="text-xs font-bold text-slate-600">
-              Print Settings (Default: A4 Portrait)
-            </div>
             <div className="flex gap-2">
               <button 
                 onClick={() => setPrintOrientation('portrait')}
@@ -661,6 +781,23 @@ export default function App() {
             <div className="text-[10px] text-slate-400 mt-1">
               Press <kbd className="bg-slate-100 px-1 rounded border border-slate-300">Ctrl+P</kbd> to print
             </div>
+            <div className="h-[1px] bg-slate-100 my-1" />
+            <div className="flex gap-2">
+              <button 
+                onClick={handleSaveAsPDF}
+                className="flex flex-1 items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded text-[10px] font-bold hover:bg-slate-700 transition-all"
+                title="Save this view as PDF"
+              >
+                <FileDown size={14} /> PDF
+              </button>
+              <button 
+                onClick={handleSaveAsImage}
+                className="flex flex-1 items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded text-[10px] font-bold hover:bg-slate-700 transition-all"
+                title="Save this view as JPEG"
+              >
+                <ImageIcon size={14} /> JPEG
+              </button>
+            </div>
           </div>
           <button 
             onClick={() => setIsPrintMode(false)}
@@ -676,7 +813,7 @@ export default function App() {
       <main className={`relative p-4 md:p-8 overflow-auto h-[calc(100vh-220px)] md:h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
         <div 
           ref={canvasRef}
-          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full ${printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape'}`}
+          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none mx-auto print:bg-white print:static print:block ${isPrintMode ? (printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape') : ''}`}
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
@@ -692,11 +829,12 @@ export default function App() {
             marginBottom: !isPrintMode ? `${(zoom - 1) * 800}px` : undefined,
             marginRight: !isPrintMode ? `${(zoom - 1) * 1200}px` : undefined,
             backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
-            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
+            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+            paddingTop: isPrintMode ? '20px' : '0px'
           }}
         >
           {/* Room Label */}
-          <div className="absolute -top-3 left-8 bg-[#faf9f7] px-3 text-[10px] font-bold tracking-widest uppercase text-[#7a746c] z-10 print:bg-white print:text-black">
+          <div className={`absolute left-8 bg-[#faf9f7] px-3 text-[10px] font-bold tracking-widest uppercase text-[#7a746c] z-10 print:bg-white print:text-black ${isPrintMode ? 'top-4' : '-top-3'}`}>
             {yearGroup} {classCode && `- ${classCode}`} | {subject}
           </div>
 
