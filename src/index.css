@@ -3,20 +3,18 @@
 @layer base {
   @media print {
     @page {
-      size: landscape;
-      margin: 10mm;
+      margin: 5mm;
     }
     html, body {
-      height: auto !important;
-      overflow: visible !important;
+      height: 100vh !important;
+      overflow: hidden !important;
       background-color: white !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     #root {
       width: 100% !important;
-      height: auto !important;
-      display: block !important;
+      height: 100% !important;
     }
   }
 }
