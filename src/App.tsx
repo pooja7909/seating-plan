@@ -29,8 +29,7 @@ import {
   FileUp,
   Info,
   Undo2,
-  Redo2,
-  Image as ImageIcon
+  Redo2
 } from 'lucide-react';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
@@ -308,29 +307,6 @@ export default function App() {
     localStorage.setItem('classroom-seating-plan-v4', JSON.stringify(state));
   }, [seats, groups, roomElements, yearGroup, subject, classCode]);
 
-  const exportAsJpeg = async () => {
-    if (canvasRef.current) {
-      try {
-        const { toJpeg } = await import('html-to-image');
-        // Temporarily hide UI elements that shouldn't be in the JPEG
-        const dataUrl = await toJpeg(canvasRef.current, { 
-          quality: 0.95, 
-          backgroundColor: '#faf9f7',
-          style: {
-            borderRadius: '0',
-            border: 'none'
-          }
-        });
-        const link = document.createElement('a');
-        link.download = `seating-plan-${subject}-${yearGroup}-${classCode || 'no-code'}.jpeg`;
-        link.href = dataUrl;
-        link.click();
-      } catch (err) {
-        console.error('Failed to export JPEG', err);
-      }
-    }
-  };
-
   const addSeat = () => {
     saveToHistory();
     const newSeat: SeatData = {
@@ -508,15 +484,6 @@ export default function App() {
                 className="px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all"
               >
                 Reset All
-              </button>
-
-              <button 
-                onClick={exportAsJpeg}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                title="Save as JPEG"
-              >
-                <ImageIcon size={16} />
-                Save JPEG
               </button>
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1" />
