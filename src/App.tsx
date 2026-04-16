@@ -193,15 +193,19 @@ export default function App() {
 
   const exportTemplate = () => {
     const template = {
-      seats: seats.map(s => ({ ...s, studentName: '', status: 'empty', groupId: undefined })),
+      seats,
       roomElements,
-      groups
+      groups,
+      yearGroup,
+      subject,
+      classCode
     };
     const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `layout-template-${subject}-${yearGroup}.json`;
+    const fileName = `${yearGroup} - ${classCode || 'NoCode'} - ${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
+    a.download = `${fileName}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -216,21 +220,30 @@ export default function App() {
         const data = JSON.parse(event.target?.result as string);
         setConfirmModal({
           isOpen: true,
-          title: 'Import Layout Template',
-          message: 'This will replace your current layout with the template. Student names will be cleared. Continue?',
+          title: 'Import Seating Plan',
+          message: 'This will replace your current layout and all student data with the imported file. Continue?',
           onConfirm: () => {
             saveToHistory();
-            setSeats(data.seats.map((s: any) => ({ ...s, id: `seat-${Math.random()}` })));
-            setRoomElements(data.roomElements.map((e: any) => ({ ...e, id: `element-${Math.random()}` })));
+            // Use existing IDs if they exist to maintain consistency, or generate new ones if needed
+            // But for a full import, we usually want the exact state
+            setSeats(data.seats);
+            setRoomElements(data.roomElements);
             if (data.groups) setGroups(data.groups);
+            if (data.yearGroup) setYearGroup(data.yearGroup);
+            if (data.subject) setSubject(data.subject);
+            if (data.classCode) setClassCode(data.classCode);
             setConfirmModal(null);
+            setToast({ message: 'Seating plan imported successfully', type: 'success' });
           }
         });
       } catch (err) {
-        console.error('Failed to parse template', err);
+        console.error('Failed to parse file', err);
+        setToast({ message: 'Failed to import file. Invalid format.', type: 'info' });
       }
     };
     reader.readAsText(file);
+    // Reset input so the same file can be imported again
+    e.target.value = '';
   };
 
   // Keyboard shortcuts
@@ -502,13 +515,13 @@ export default function App() {
               <button 
                 onClick={exportTemplate}
                 className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                title="Export Layout Template"
+                title="Export Seating Plan"
               >
                 <FileDown size={16} />
                 Export
               </button>
 
-              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer" title="Import Layout Template">
+              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer" title="Import Seating Plan">
                 <FileUp size={16} />
                 Import
                 <input type="file" accept=".json" onChange={importTemplate} className="hidden" />
