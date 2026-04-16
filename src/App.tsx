@@ -109,6 +109,7 @@ export default function App() {
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
@@ -421,6 +422,16 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#f0ede8] text-[#1a1816] font-mono selection:bg-blue-100 print:bg-white print:text-black ${isPrintMode ? 'bg-white' : ''} print:h-auto print:block print:overflow-visible`}>
+      <style>
+        {`
+          @media print {
+            @page {
+              size: A4 ${printOrientation};
+              margin: 5mm;
+            }
+          }
+        `}
+      </style>
       {/* Header */}
       {!isPrintMode && (
         <header className="px-8 py-6 max-w-[1400px] mx-auto print:hidden">
@@ -633,8 +644,27 @@ export default function App() {
 
       {isPrintMode && (
         <div className="fixed top-4 right-4 z-[100] print:hidden flex flex-col items-end gap-2">
-          <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg text-xs font-bold text-slate-600">
-            If the print dialog didn't open, press <kbd className="bg-slate-100 px-1 rounded border border-slate-300">Ctrl+P</kbd>
+          <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg flex flex-col gap-2">
+            <div className="text-xs font-bold text-slate-600">
+              Print Settings (Default: A4 Portrait)
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setPrintOrientation('portrait')}
+                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printOrientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                Portrait
+              </button>
+              <button 
+                onClick={() => setPrintOrientation('landscape')}
+                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printOrientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                Landscape
+              </button>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">
+              Press <kbd className="bg-slate-100 px-1 rounded border border-slate-300">Ctrl+P</kbd> to print
+            </div>
           </div>
           <button 
             onClick={() => setIsPrintMode(false)}
@@ -650,7 +680,7 @@ export default function App() {
       <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
         <div 
           ref={canvasRef}
-          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full print-scale"
+          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full ${printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape'}`}
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
@@ -1135,7 +1165,7 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
         <div className="print:hidden">
           {config.icon}
         </div>
-        <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900`}>
+        <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900 print:text-[14px] print:font-black`}>
           {seat.studentName || 'Empty'}
         </span>
         {seat.status !== 'empty' && (
