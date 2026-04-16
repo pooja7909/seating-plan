@@ -24,10 +24,14 @@
       padding: 0 !important;
       margin: 0 !important;
     }
-    /* Scale content to fit A4 width if necessary */
-    .print-scale {
+    /* Scale content to fit A4 width */
+    .print-scale-portrait {
       transform-origin: top left;
-      scale: 0.7; /* Adjust this if the layout is too wide for portrait */
+      scale: 0.65; /* Fits 1200px into A4 Portrait */
+    }
+    .print-scale-landscape {
+      transform-origin: top left;
+      scale: 0.9; /* Fits 1200px into A4 Landscape */
     }
   }
 }
