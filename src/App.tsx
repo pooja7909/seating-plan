@@ -110,6 +110,7 @@ export default function App() {
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
@@ -447,97 +448,79 @@ export default function App() {
       </style>
       {/* Header */}
       {!isPrintMode && (
-        <header className="px-8 py-6 max-w-[1400px] mx-auto print:hidden">
-          <div className="flex flex-wrap items-center justify-between gap-6 mb-2">
+        <header className="px-4 md:px-8 py-4 md:py-6 max-w-[1400px] mx-auto print:hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
             <div className="flex flex-col">
-              <h1 className="text-4xl font-extrabold tracking-tighter uppercase font-sans">
+              <h1 className="text-2xl md:text-4xl font-extrabold tracking-tighter uppercase font-sans">
                 Classroom Seating Plan
               </h1>
-              <p className="text-xs text-[#7a746c] mt-1">
+              <p className="text-[10px] md:text-xs text-[#7a746c] mt-1">
                 Double-click to edit • Drag to move • Click to delete (in delete mode)
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 mr-4">
-                <span className="text-xs text-[#7a746c]">Colour key:</span>
-                {(Object.keys(STATUS_CONFIG) as StudentStatus[]).map(status => (
-                  <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`}>
-                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
-                    {STATUS_CONFIG[status].label}
-                  </div>
-                ))}
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              <div className="flex items-center gap-2 mr-2 md:mr-4">
+                <span className="text-[10px] md:text-xs text-[#7a746c] hidden sm:inline">Colour key:</span>
+                <div className="flex gap-1">
+                  {(Object.keys(STATUS_CONFIG) as StudentStatus[]).map(status => (
+                    <div key={status} className={`w-6 h-6 rounded border ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border} flex items-center justify-center`} title={STATUS_CONFIG[status].label}>
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <button 
                 onClick={() => setIsDeleteMode(!isDeleteMode)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border-2 ${isDeleteMode ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all border-2 ${isDeleteMode ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
               >
                 <Trash2 size={16} />
-                {isDeleteMode ? 'Delete mode ON' : 'Delete mode'}
+                <span className="hidden sm:inline">{isDeleteMode ? 'Delete mode ON' : 'Delete mode'}</span>
               </button>
 
               <button 
                 onClick={addSeat}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
               >
                 <Plus size={16} />
-                + Add seat
-              </button>
-
-              <button 
-                onClick={() => { 
-                  setConfirmModal({
-                    isOpen: true,
-                    title: 'Load Draft Layout',
-                    message: 'Load 25-seat draft layout? Current layout will be lost.',
-                    onConfirm: () => {
-                      saveToHistory();
-                      loadDraftLayout();
-                      setConfirmModal(null);
-                    }
-                  });
-                }}
-                className="px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all"
-              >
-                Load Draft
+                <span className="hidden sm:inline">+ Add seat</span>
+                <span className="sm:hidden">+ Seat</span>
               </button>
 
               <button 
                 onClick={resetAll}
-                className="px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all"
+                className="px-3 md:px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs md:text-sm font-semibold transition-all"
               >
-                Reset All
+                Reset
               </button>
 
-              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
+              <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
               <button 
                 onClick={exportTemplate}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
                 title="Export Seating Plan"
               >
                 <FileDown size={16} />
-                Export
+                <span className="hidden sm:inline">Export</span>
               </button>
 
-              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer" title="Import Seating Plan">
+              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all cursor-pointer" title="Import Seating Plan">
                 <FileUp size={16} />
-                Import
+                <span className="hidden sm:inline">Import</span>
                 <input type="file" accept=".json" onChange={importTemplate} className="hidden" />
               </label>
 
-              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
-
               <button 
                 onClick={handlePrint}
-                className="flex items-center gap-2 bg-[#1a1816] text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-all"
+                className="flex items-center gap-2 bg-[#1a1816] text-white px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-semibold hover:bg-slate-800 transition-all"
               >
                 <Printer size={16} />
                 Print
               </button>
 
-              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
+              <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
               <div className="flex items-center gap-1">
                 <button 
@@ -576,7 +559,7 @@ export default function App() {
           </div>
 
           {/* Metadata Dropdowns */}
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-4">
             <div className="relative group">
               <select 
                 value={yearGroup}
@@ -584,7 +567,7 @@ export default function App() {
                   saveToHistory();
                   setYearGroup(e.target.value);
                 }}
-                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
               >
                 {YEAR_GROUPS.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
@@ -598,7 +581,7 @@ export default function App() {
                   saveToHistory();
                   setSubject(e.target.value);
                 }}
-                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
               >
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -612,24 +595,24 @@ export default function App() {
                 onFocus={() => saveToHistory()}
                 onChange={(e) => setClassCode(e.target.value.toUpperCase())}
                 placeholder="CLASS CODE"
-                className="bg-white border-2 border-slate-200 rounded-lg px-4 py-2 text-sm font-bold outline-none focus:border-blue-500 transition-all w-32 uppercase placeholder:text-slate-300"
+                className="bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all w-24 md:w-32 uppercase placeholder:text-slate-300"
               />
             </div>
 
-            <div className="h-6 w-[1px] bg-slate-300 mx-2" />
+            <div className="h-6 w-[1px] bg-slate-300 mx-1 hidden md:block" />
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => addRoomElement('door')} className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all">
-                <DoorOpen size={14} /> + Door
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => addRoomElement('door')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
+                <DoorOpen size={14} /> <span className="hidden sm:inline">+ Door</span>
               </button>
-              <button onClick={() => addRoomElement('window')} className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all">
-                <Square size={14} /> + Window
+              <button onClick={() => addRoomElement('window')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
+                <Square size={14} /> <span className="hidden sm:inline">+ Window</span>
               </button>
-              <button onClick={() => addRoomElement('aisle')} className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all">
-                <Navigation size={14} /> + Aisle
+              <button onClick={() => addRoomElement('aisle')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
+                <Navigation size={14} /> <span className="hidden sm:inline">+ Aisle</span>
               </button>
-              <button onClick={() => addRoomElement('other')} className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all">
-                <Square size={14} /> + Other
+              <button onClick={() => addRoomElement('other')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
+                <Square size={14} /> <span className="hidden sm:inline">+ Other</span>
               </button>
             </div>
             
@@ -690,7 +673,7 @@ export default function App() {
       )}
 
       {/* Main Canvas */}
-      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
+      <main className={`relative p-4 md:p-8 overflow-auto h-[calc(100vh-220px)] md:h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
         <div 
           ref={canvasRef}
           className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full ${printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape'}`}
@@ -704,6 +687,10 @@ export default function App() {
             }
           }}
           style={{
+            transform: !isPrintMode ? `scale(${zoom})` : undefined,
+            transformOrigin: 'top center',
+            marginBottom: !isPrintMode ? `${(zoom - 1) * 800}px` : undefined,
+            marginRight: !isPrintMode ? `${(zoom - 1) * 1200}px` : undefined,
             backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
             backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
           }}
@@ -1093,24 +1080,45 @@ export default function App() {
         </div>
       )}
 
-      {/* Stats Summary (Floating) */}
+      {/* Stats Summary & Zoom (Floating) */}
       {!isPrintMode && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md border border-slate-200 px-6 py-3 rounded-full shadow-xl flex items-center gap-6 z-10 print:hidden">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-slate-400" />
-            <span className="text-xs font-bold text-slate-600">Total: {seats.length}</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md border border-slate-200 px-4 md:px-6 py-3 rounded-2xl md:rounded-full shadow-xl flex flex-col md:flex-row items-center gap-4 md:gap-6 z-10 print:hidden max-w-[90vw]">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-slate-400" />
+              <span className="text-[10px] md:text-xs font-bold text-slate-600">Total: {seats.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-[10px] md:text-xs font-bold text-green-600">Present: {seats.filter(s => s.status === 'present').length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-[10px] md:text-xs font-bold text-red-600">Absent: {seats.filter(s => s.status === 'absent').length}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs font-bold text-green-600">Present: {seats.filter(s => s.status === 'present').length}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-xs font-bold text-red-600">Absent: {seats.filter(s => s.status === 'absent').length}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-xs font-bold text-amber-600">Focus: {seats.filter(s => s.status === 'focus').length}</span>
+
+          <div className="h-4 w-[1px] bg-slate-200 hidden md:block" />
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Zoom</span>
+            <input 
+              type="range" 
+              min="0.3" 
+              max="1.5" 
+              step="0.1" 
+              value={zoom} 
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              className="w-24 md:w-32 accent-blue-600"
+            />
+            <span className="text-[10px] font-bold text-slate-600 min-w-[30px]">{Math.round(zoom * 100)}%</span>
+            <button 
+              onClick={() => setZoom(1)}
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
+              title="Reset Zoom"
+            >
+              <RotateCcw size={12} />
+            </button>
           </div>
         </div>
       )}
