@@ -2,36 +2,56 @@
 
 @layer base {
   @media print {
-    @page {
-      size: A4 portrait;
-      margin: 10mm;
-    }
     html, body {
-      height: auto !important;
-      overflow: visible !important;
+      height: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
       background-color: white !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     #root {
       width: 100% !important;
-      height: auto !important;
-      display: block !important;
+      height: 100% !important;
     }
     main {
-      height: auto !important;
-      overflow: visible !important;
+      width: 100% !important;
+      height: 100% !important;
+      display: block !important;
       padding: 0 !important;
       margin: 0 !important;
     }
     /* Scale content to fit A4 width */
     .print-scale-portrait {
-      transform-origin: top left;
-      scale: 0.8; /* Increased from 0.65 */
+      transform-origin: top center;
+      transform: scale(0.65) !important; /* Scale 1200px to ~780px (approx A4 width minus safe zone) */
+      margin-left: auto !important;
+      margin-right: auto !important;
+      margin-top: 15mm !important;
+      display: block !important;
+      width: 1200px !important;
+      min-width: 1200px !important;
+      border: none !important;
     }
     .print-scale-landscape {
-      transform-origin: top left;
-      scale: 1.1; /* Increased from 0.9 */
+      transform-origin: top center;
+      transform: scale(0.9) !important; /* Scale 1200px for A4 Landscape */
+      margin-left: auto !important;
+      margin-right: auto !important;
+      margin-top: 15mm !important;
+      display: block !important;
+      width: 1200px !important;
+      min-width: 1200px !important;
+      border: none !important;
+    }
+    /* Hide scrollbars in print mode preview to avoid confusion */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   }
 }
