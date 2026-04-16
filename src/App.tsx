@@ -449,8 +449,9 @@ export default function App() {
               <div className="flex items-center gap-2 mr-4">
                 <span className="text-xs text-[#7a746c]">Colour key:</span>
                 {(Object.keys(STATUS_CONFIG) as StudentStatus[]).map(status => (
-                  <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`} title={STATUS_CONFIG[status].label}>
+                  <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`}>
                     <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
+                    {STATUS_CONFIG[status].label}
                   </div>
                 ))}
               </div>
@@ -813,14 +814,14 @@ export default function App() {
                     <button
                       key={status}
                       onClick={() => setEditingSeat({ ...editingSeat, status })}
-                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
                         editingSeat.status === status 
                           ? `${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border} ${STATUS_CONFIG[status].text} ring-2 ring-offset-1 ring-blue-500` 
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
-                      title={STATUS_CONFIG[status].label}
                     >
                       {STATUS_CONFIG[status].icon}
+                      {STATUS_CONFIG[status].label}
                     </button>
                   ))}
                 </div>
