@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { toJpeg } from 'html-to-image';
 import { 
   Plus, 
   Trash2, 
@@ -312,6 +311,7 @@ export default function App() {
   const exportAsJpeg = async () => {
     if (canvasRef.current) {
       try {
+        const { toJpeg } = await import('html-to-image');
         // Temporarily hide UI elements that shouldn't be in the JPEG
         const dataUrl = await toJpeg(canvasRef.current, { 
           quality: 0.95, 
