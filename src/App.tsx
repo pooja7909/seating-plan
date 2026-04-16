@@ -647,10 +647,10 @@ export default function App() {
       )}
 
       {/* Main Canvas */}
-      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible ${isPrintMode ? 'h-screen p-0' : ''}`}>
+      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
         <div 
           ref={canvasRef}
-          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white"
+          className="relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block"
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
