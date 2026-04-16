@@ -3,19 +3,31 @@
 @layer base {
   @media print {
     @page {
-      size: landscape;
-      margin: 5mm;
+      size: A4 portrait;
+      margin: 10mm;
     }
     html, body {
-      height: 100vh !important;
-      overflow: hidden !important;
+      height: auto !important;
+      overflow: visible !important;
       background-color: white !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     #root {
       width: 100% !important;
-      height: 100% !important;
+      height: auto !important;
+      display: block !important;
+    }
+    main {
+      height: auto !important;
+      overflow: visible !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    /* Scale content to fit A4 width if necessary */
+    .print-scale {
+      transform-origin: top left;
+      scale: 0.7; /* Adjust this if the layout is too wide for portrait */
     }
   }
 }
