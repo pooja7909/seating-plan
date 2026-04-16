@@ -449,9 +449,8 @@ export default function App() {
               <div className="flex items-center gap-2 mr-4">
                 <span className="text-xs text-[#7a746c]">Colour key:</span>
                 {(Object.keys(STATUS_CONFIG) as StudentStatus[]).map(status => (
-                  <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`}>
+                  <div key={status} className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border}`} title={STATUS_CONFIG[status].label}>
                     <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: STATUS_CONFIG[status].color }} />
-                    {STATUS_CONFIG[status].label}
                   </div>
                 ))}
               </div>
@@ -677,7 +676,7 @@ export default function App() {
       )}
 
       {/* Main Canvas */}
-      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-screen p-0' : ''}`}>
+      <main className={`relative p-8 overflow-auto h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
         <div 
           ref={canvasRef}
           className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:min-w-0 print:min-h-0 mx-auto print:bg-white print:static print:block print:w-full ${printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape'}`}
@@ -814,14 +813,14 @@ export default function App() {
                     <button
                       key={status}
                       onClick={() => setEditingSeat({ ...editingSeat, status })}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
                         editingSeat.status === status 
                           ? `${STATUS_CONFIG[status].bg} ${STATUS_CONFIG[status].border} ${STATUS_CONFIG[status].text} ring-2 ring-offset-1 ring-blue-500` 
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
+                      title={STATUS_CONFIG[status].label}
                     >
                       {STATUS_CONFIG[status].icon}
-                      {STATUS_CONFIG[status].label}
                     </button>
                   ))}
                 </div>
@@ -1139,7 +1138,7 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
       onClick={() => {
         if (isDeleteMode) onDelete();
       }}
-      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] group ${config.bg} ${config.border} print:shadow-none ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
+      className={`absolute rounded-xl border-2 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-2 transition-shadow hover:shadow-lg z-[1] group ${config.bg} ${config.border} print:shadow-none print:!h-auto print:min-h-[60px] ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
       style={{
         width: seat.width,
         height: seat.height,
@@ -1168,11 +1167,6 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
         <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${config.text} print:text-slate-900 print:text-[14px] print:font-black print:overflow-visible print:whitespace-normal print:break-words`}>
           {seat.studentName || 'Empty'}
         </span>
-        {seat.status !== 'empty' && (
-          <span className="print:hidden text-[8px] uppercase font-black text-slate-500">
-            {config.label}
-          </span>
-        )}
       </div>
 
       {isDeleteMode && (
