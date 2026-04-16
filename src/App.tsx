@@ -13,7 +13,7 @@ import {
   Users, 
   CheckCircle2, 
   XCircle, 
-  AlertCircle, 
+  Target, 
   Star,
   Printer,
   RotateCcw,
@@ -77,7 +77,7 @@ const STATUS_CONFIG: Record<StudentStatus, { label: string; icon: React.ReactNod
   },
   focus: { 
     label: 'Needs Focus', 
-    icon: <AlertCircle size={14} />, 
+    icon: <Target size={14} />, 
     color: '#f59e0b', 
     bg: 'bg-amber-100', 
     border: 'border-amber-400', 
@@ -1025,7 +1025,7 @@ export default function App() {
           >
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle size={32} />
+                <Info size={32} />
               </div>
               <h2 className="text-xl font-bold text-slate-800 mb-2">{confirmModal.title}</h2>
               <p className="text-slate-600 text-sm leading-relaxed">
