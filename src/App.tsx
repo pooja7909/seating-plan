@@ -41,8 +41,8 @@ const YEAR_GROUPS = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 1
 const SUBJECTS = [
   'Biology', 'Business Studies', 'Chemistry', 'Chinese A', 'Computer Science', 'Drama', 
   'EAL', 'EAP', 'Economics', 'English', 'ESS', 'French', 'Geography', 'German', 'Guidance', 
-  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'Physics', 'Psychology','Registration',
-  'Science', 'Spanish','Sports','Sports Science'
+  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'PE', 'Physics', 'Psychology',
+  'Registration', 'Science', 'Spanish', 'Sports Science'
 ];
 
 const DEFAULT_GROUPS: StudentGroup[] = [
