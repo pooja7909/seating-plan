@@ -35,7 +35,12 @@ import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, Ele
 const GRID_SIZE = 20;
 
 const YEAR_GROUPS = ['Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13'];
-const SUBJECTS = ['Maths', 'English', 'Science', 'History', 'Geography', 'Art', 'Music', 'PE', 'Computer Science', 'Drama'];
+const SUBJECTS = [
+  'Biology', 'Business Studies', 'Chemistry', 'Computer Science', 'Drama', 
+  'Economics', 'English', 'ESS', 'French', 'Geography', 'Guidance', 
+  'History', 'Humanities', 'Hungarian', 'Maths', 'Music', 'Physics', 
+  'Science', 'Spanish'
+];
 
 const DEFAULT_GROUPS: StudentGroup[] = [
   { id: 'group-1', name: 'Group A', color: '#3b82f6' },
@@ -598,11 +603,11 @@ export default function App() {
       )}
 
       {/* Print Header */}
-      <div className="hidden print:block p-10 bg-white border-b-4 border-slate-200 mb-8">
+      <div className="hidden print:block p-10 bg-white border-b-8 border-slate-200 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
-            <p className="text-lg font-bold text-slate-500 mt-2">{classCode || 'NO CLASS CODE'}</p>
+            <h1 className="text-6xl font-black uppercase tracking-tighter leading-none">{yearGroup} - {subject}</h1>
+            <p className="text-3xl font-bold text-slate-500 mt-4">{classCode || 'NO CLASS CODE'}</p>
           </div>
         </div>
       </div>
