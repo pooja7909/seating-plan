@@ -32,6 +32,8 @@ import {
   Info,
   Undo2,
   Redo2,
+  LayoutGrid,
+  Save,
   Image as ImageIcon
 } from 'lucide-react';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
@@ -130,13 +132,17 @@ export default function App() {
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<{ type: 'seat' | 'element', data: any } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(true);
+  const [printSettings, setPrintSettings] = useState<{ grayscale: boolean; orientation: 'portrait' | 'landscape' }>({
+    grayscale: false,
+    orientation: 'landscape'
+  });
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
@@ -145,26 +151,31 @@ export default function App() {
 
   // Load state when class metadata changes
   useEffect(() => {
-    const key = getStorageKey();
-    const saved = localStorage.getItem(key);
-    
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSeats(parsed.seats || []);
-        setRoomElements(parsed.roomElements || []);
-        setGroups(parsed.groups || DEFAULT_GROUPS);
-      } catch (e) {
-        console.error('Failed to load saved state', e);
+    const loadData = async () => {
+      // Fallback to localStorage
+      const key = getStorageKey();
+      const saved = localStorage.getItem(key);
+      
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setSeats(parsed.seats || []);
+          setRoomElements(parsed.roomElements || []);
+          setGroups(parsed.groups || DEFAULT_GROUPS);
+        } catch (e) {
+          console.error('Failed to load saved state', e);
+        }
+      } else {
+        // Clear if no data exists for this class
+        if (!isInitialLoad.current) {
+          setSeats([]);
+          setRoomElements([]);
+          setGroups(DEFAULT_GROUPS);
+        }
       }
-    } else {
-      // Clear if no data exists for this class
-      if (!isInitialLoad.current) {
-        setSeats([]);
-        setRoomElements([]);
-        setGroups(DEFAULT_GROUPS);
-      }
-    }
+    };
+
+    loadData();
     isInitialLoad.current = false;
   }, [yearGroup, subject, classCode]);
 
@@ -179,6 +190,55 @@ export default function App() {
     };
     localStorage.setItem(key, JSON.stringify(state));
   }, [seats, roomElements, groups]);
+
+  const saveAsMyRoomTemplate = async () => {
+    const template = {
+      roomElements: roomElements.map(e => ({ ...e })),
+      seats: seats.map(s => ({
+        ...s,
+        studentName: '', 
+        status: 'empty' as StudentStatus,
+        groupId: undefined
+      }))
+    };
+
+    localStorage.setItem('classroom-user-template', JSON.stringify(template));
+    setToast({ message: 'Current layout saved locally!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const applyMyRoomTemplate = async () => {
+    let savedData = null;
+
+    const local = localStorage.getItem('classroom-user-template');
+    if (local) savedData = JSON.parse(local);
+
+    if (!savedData) {
+      setToast({ message: 'No room template found. Save your layout first!', type: 'info' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    
+    saveToHistory();
+    try {
+      const templatedSeats = savedData.seats.map((s: any) => ({
+        ...s,
+        id: `seat-${Math.random().toString(36).substr(2, 9)}`
+      }));
+      const templatedElements = savedData.roomElements.map((e: any) => ({
+        ...e,
+        id: `element-${Math.random().toString(36).substr(2, 9)}`
+      }));
+      
+      setSeats(templatedSeats);
+      setRoomElements(templatedElements);
+      setGroups(DEFAULT_GROUPS);
+      setToast({ message: 'Room template applied!', type: 'success' });
+    } catch (e) {
+      console.error('Failed to apply room template', e);
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadDraft = () => {
     saveToHistory();
@@ -299,6 +359,30 @@ export default function App() {
       };
       setRoomElements([...roomElements, newElement]);
     }
+  };
+
+  const exportArchitecture = () => {
+    const template = {
+      roomElements: roomElements.map(e => ({ ...e })),
+      seats: seats.map(s => ({
+        ...s,
+        studentName: '',
+        status: 'empty' as StudentStatus,
+        groupId: undefined
+      })),
+      yearGroup: '',
+      subject: '',
+      classCode: ''
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Room-Template-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: 'Room architecture exported!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
   };
 
   const exportTemplate = () => {
@@ -535,6 +619,11 @@ export default function App() {
   };
 
   const handlePrint = () => {
+    setIsPrintModalOpen(true);
+  };
+
+  const triggerPrint = () => {
+    setIsPrintModalOpen(false);
     setIsPrintMode(true);
     // Give the UI a moment to update before triggering the print dialog
     setTimeout(() => {
@@ -603,7 +692,7 @@ export default function App() {
       canvasRef.current.style.width = originalWidth;
 
       // Initialize jsPDF with explicit orientation
-      const orientation = printOrientation === 'portrait' ? 'p' : 'l';
+      const orientation = printSettings.orientation === 'portrait' ? 'p' : 'l';
       const pdf = new jsPDF({
         orientation: orientation,
         unit: 'mm',
@@ -660,7 +749,7 @@ export default function App() {
         {`
           @media print {
             @page {
-              size: A4 ${printOrientation};
+              size: A4 ${printSettings.orientation};
               margin: 0;
             }
           }
@@ -671,9 +760,11 @@ export default function App() {
         <header className="px-4 md:px-8 py-4 md:py-6 w-full print:hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
             <div className="flex flex-col">
-              <h1 className="text-2xl md:text-4xl font-extrabold tracking-tighter uppercase font-sans">
-                Classroom Seating Plan
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-4xl font-extrabold tracking-tighter uppercase font-sans">
+                  Classroom Seating Plan
+                </h1>
+              </div>
               <p className="text-[10px] md:text-xs text-[#7a746c] mt-1">
                 Double-click to edit • Drag to move • Click to delete (in delete mode)
               </p>
@@ -683,6 +774,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
+
               <div className="flex flex-wrap items-center gap-2 mr-2 md:mr-4">
                 <span className="text-[10px] md:text-xs text-[#7a746c] hidden sm:inline">Colour key:</span>
                 <div className="flex flex-wrap gap-2">
@@ -719,13 +811,34 @@ export default function App() {
                 Reset
               </button>
 
-              <button 
-                onClick={loadDraft}
-                className="flex items-center gap-2 bg-blue-600 border-2 border-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all shadow-md active:scale-95"
-              >
-                <RotateCcw size={16} />
-                <span>Load Draft</span>
-              </button>
+              <div className="flex flex-col gap-1">
+                <button 
+                  onClick={loadDraft}
+                  className="flex items-center gap-2 bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 text-blue-700 px-3 md:px-4 py-2 rounded-lg text-[10px] md:text-xs font-bold transition-all shadow-sm active:scale-95"
+                  title="Load the default demo layout"
+                >
+                  <RotateCcw size={14} />
+                  <span>Default Draft</span>
+                </button>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={applyMyRoomTemplate}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 border-2 border-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all shadow-md active:scale-95"
+                    title="Load your saved room architecture"
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Apply My Room</span>
+                  </button>
+                  <button 
+                    onClick={saveAsMyRoomTemplate}
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] md:text-xs font-bold transition-all"
+                    title="Save current furniture/seat positions as your room layout"
+                  >
+                    <Save size={14} />
+                    <span>Save My Room Template</span>
+                  </button>
+                </div>
+              </div>
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
@@ -916,14 +1029,14 @@ export default function App() {
           <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-lg flex flex-col gap-2">
             <div className="flex gap-2">
               <button 
-                onClick={() => setPrintOrientation('portrait')}
-                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printOrientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                onClick={() => setPrintSettings({ ...printSettings, orientation: 'portrait' })}
+                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printSettings.orientation === 'portrait' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 Portrait
               </button>
               <button 
-                onClick={() => setPrintOrientation('landscape')}
-                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printOrientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                onClick={() => setPrintSettings({ ...printSettings, orientation: 'landscape' })}
+                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${printSettings.orientation === 'landscape' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 Landscape
               </button>
@@ -966,7 +1079,7 @@ export default function App() {
       <main className={`relative p-4 md:p-8 overflow-auto h-[calc(100vh-220px)] md:h-[calc(100vh-180px)] print:p-0 print:h-auto print:overflow-visible print:static ${isPrintMode ? 'h-auto min-h-screen p-0 no-scrollbar' : ''}`}>
         <div 
           ref={canvasRef}
-          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:bg-white print:static print:block ${isPrintMode ? (printOrientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape') : ''}`}
+          className={`relative min-w-[1200px] min-h-[800px] bg-[#faf9f7] rounded-xl border-2 border-[#d4cfc8] shadow-sm print:border-none print:shadow-none print:bg-white print:static print:block ${isPrintMode ? (printSettings.orientation === 'portrait' ? 'print-scale-portrait' : 'print-scale-landscape') : ''}`}
           onContextMenu={(e) => {
             if (clipboard) {
               e.preventDefault();
@@ -981,9 +1094,10 @@ export default function App() {
             transformOrigin: 'top center',
             marginBottom: !isPrintMode ? `${(zoom - 1) * 800}px` : undefined,
             marginRight: !isPrintMode ? `${(zoom - 1) * 1200}px` : undefined,
-            backgroundImage: snapToGrid ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
+            backgroundImage: snapToGrid && !isPrintMode ? 'radial-gradient(#d4cfc8 1px, transparent 1px)' : 'none',
             backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-            paddingTop: isPrintMode ? '20px' : '0px'
+            paddingTop: isPrintMode ? '20px' : '0px',
+            filter: isPrintMode && printSettings.grayscale ? 'grayscale(100%) contrast(1.2)' : 'none',
           }}
         >
           {/* Room Label */}
@@ -1516,14 +1630,27 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-10 flex gap-4">
+              <div className="mt-10 flex flex-col gap-3">
                 <button 
                   onClick={() => setIsWelcomeModalOpen(false)}
-                  className="flex-1 bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+                  className="w-full bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
                 >
                   Start Seating Plan
                   <Plus size={18} />
                 </button>
+
+                {localStorage.getItem('classroom-user-template') && (
+                  <button 
+                    onClick={() => {
+                      applyMyRoomTemplate();
+                      setIsWelcomeModalOpen(false);
+                    }}
+                    className="w-full bg-blue-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    Use My Room Layout
+                    <LayoutGrid size={18} />
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1531,6 +1658,91 @@ export default function App() {
               <p className="text-[10px] text-slate-500 font-bold text-center">
                 TIP: You can change these details later in the header dropdowns.
               </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Print Settings Modal */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-8">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                  <Printer size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 tracking-tight">Print Settings</h2>
+                  <p className="text-slate-500 text-sm font-medium">Customize your layout for A4 paper</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-400">Orientation</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setPrintSettings({ ...printSettings, orientation: 'portrait' })}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${printSettings.orientation === 'portrait' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="w-8 h-10 border-2 border-current rounded-sm flex items-start justify-center pt-1">
+                        <div className="w-4 h-1 bg-current opacity-20" />
+                      </div>
+                      <span className="text-xs font-bold">Portrait</span>
+                    </button>
+                    <button 
+                      onClick={() => setPrintSettings({ ...printSettings, orientation: 'landscape' })}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${printSettings.orientation === 'landscape' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="w-10 h-8 border-2 border-current rounded-sm flex items-start justify-center pt-1">
+                        <div className="w-6 h-1 bg-current opacity-20" />
+                      </div>
+                      <span className="text-xs font-bold">Landscape</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-400">Color Mode</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setPrintSettings({ ...printSettings, grayscale: false })}
+                      className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${!printSettings.grayscale ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-red-400 via-green-400 to-blue-400" />
+                      <span className="text-xs font-bold">Full Color</span>
+                    </button>
+                    <button 
+                      onClick={() => setPrintSettings({ ...printSettings, grayscale: true })}
+                      className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${printSettings.grayscale ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-slate-400" />
+                      <span className="text-xs font-bold">Grayscale</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 flex gap-3">
+                <button 
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="flex-1 px-6 py-4 rounded-2xl font-black text-sm text-slate-500 hover:bg-slate-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={triggerPrint}
+                  className="flex-[2] bg-blue-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3"
+                >
+                  Print Full Page
+                  <Printer size={18} />
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
