@@ -1300,7 +1300,7 @@ export default function App() {
                 className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs md:text-sm font-black hover:bg-slate-900 transition-all shadow-md active:scale-95"
               >
                 <Settings2 size={16} />
-                Plan Settings
+                Plan Settings & Guide
               </button>
 
               {isCloudSyncEnabled && (
@@ -2109,6 +2109,51 @@ export default function App() {
                     <Trash2 size={16} />
                     Reset Everything
                   </button>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 flex items-center gap-2">
+                    <Info size={14} className="text-blue-500" />
+                    Quick Usage Guide
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl">
+                      <p className="text-[10px] font-black text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                        <LayoutGrid size={12} className="text-indigo-500" />
+                        Draft Templates
+                      </p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                         <strong>Save Draft</strong> stores your empty room layout. <strong>Use Draft</strong> applies it to a new class instantly.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl">
+                      <p className="text-[10px] font-black text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                        <RefreshCw size={12} className="text-emerald-500" />
+                        Rename vs Switch
+                      </p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                        <strong>Move Layout</strong> renames current plan metadata. <strong>Switch Plan</strong> sets up or opens a different class.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl">
+                      <p className="text-[10px] font-black text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                        <FileJson size={12} className="text-amber-500" />
+                        External Backup
+                      </p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                        <strong>Export JSON</strong> saves a backup file to your computer. Perfect for sharing or offline archiving.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl">
+                      <p className="text-[10px] font-black text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                        <Upload size={12} className="text-indigo-500" />
+                        Manual Restore
+                      </p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                        <strong>Import JSON</strong> opens a previously exported backup file to restore your entire seating plan.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
