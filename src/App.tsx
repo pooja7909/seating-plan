@@ -33,10 +33,19 @@ import {
   X,
   Undo2,
   Redo2,
+  ZoomIn,
+  ZoomOut,
   LayoutGrid,
   Save,
+  Cloud,
+  CloudOff,
+  CloudUpload,
+  CloudDownload,
+  RefreshCw,
   Image as ImageIcon
 } from 'lucide-react';
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db, auth } from './firebase';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
 const GRID_SIZE = 20;
@@ -124,6 +133,7 @@ export default function App() {
   const [yearGroup, setYearGroup] = useState(YEAR_GROUPS[0]);
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const [classCode, setClassCode] = useState('');
+  const [syncPin, setSyncPin] = useState('');
   const [editingSeat, setEditingSeat] = useState<SeatData | null>(null);
   const [editingElement, setEditingElement] = useState<RoomElement | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -138,18 +148,148 @@ export default function App() {
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<{ type: 'seat' | 'element', data: any } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
-  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(true);
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [printSettings, setPrintSettings] = useState<{ grayscale: boolean; orientation: 'portrait' | 'landscape' }>({
     grayscale: false,
     orientation: 'landscape'
   });
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isCloudSyncEnabled, setIsCloudSyncEnabled] = useState(() => {
+    return localStorage.getItem('cloud-sync-enabled') === 'true';
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('cloud-sync-enabled', isCloudSyncEnabled.toString());
+  }, [isCloudSyncEnabled]);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [cloudPlanAvailable, setCloudPlanAvailable] = useState<boolean>(false);
+  
+  // Draft metadata for the header to prevent instant switching
+  const [draftYear, setDraftYear] = useState(yearGroup);
+  const [draftSubject, setDraftSubject] = useState(subject);
+  const [draftCode, setDraftCode] = useState(classCode);
+  const [isChangingMetadata, setIsChangingMetadata] = useState(false);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
+  // Sync draft with actual state when it changes elsewhere
+  useEffect(() => {
+    setDraftYear(yearGroup);
+    setDraftSubject(subject);
+    setDraftCode(classCode);
+  }, [yearGroup, subject, classCode]);
+
   // Persistence Key
   const getStorageKey = () => `seating-plan-${yearGroup}-${subject}-${classCode || 'default'}`;
+  const getCloudKey = () => {
+    const rawKey = `${yearGroup}-${subject}-${classCode || 'default'}`;
+    return rawKey
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')   // Replace all non-alphanumeric sequences with hyphens
+      .replace(/^-+|-+$/g, '');      // Trim hyphens from ends
+  };
+
+  const applyNewMetadata = (moveData: boolean = false) => {
+    const normalizedCode = draftCode.toUpperCase();
+    if (moveData) {
+      const newState = { seats, roomElements, groups };
+      const newKey = `seating-plan-${draftYear}-${draftSubject}-${normalizedCode || 'default'}`;
+      localStorage.setItem(newKey, JSON.stringify(newState));
+      setToast({ message: 'Layout successfully moved to new class!', type: 'success' });
+    }
+    
+    setYearGroup(draftYear);
+    setSubject(draftSubject);
+    setClassCode(normalizedCode);
+    setIsChangingMetadata(false);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const saveToCloud = async (force: boolean = false) => {
+    if (!isCloudSyncEnabled && !force) return;
+    if (!auth.currentUser) return;
+    
+    setIsSyncing(true);
+    try {
+      const planId = getCloudKey();
+      const planData = {
+        yearGroup,
+        subject,
+        classCode,
+        pin: syncPin,
+        seats,
+        roomElements,
+        groups,
+        ownerId: auth.currentUser.uid,
+        updatedAt: serverTimestamp()
+      };
+      
+      await setDoc(doc(db, 'seatingPlans', planId), planData);
+      setLastSynced(new Date());
+      setToast({ message: 'Synced to Cloud!', type: 'success' });
+    } catch (error) {
+      console.error('Cloud Sync Error:', error);
+      setToast({ message: 'Cloud Sync Failed', type: 'info' });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const loadFromCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const planId = getCloudKey();
+      const docRef = doc(db, 'seatingPlans', planId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.pin && data.pin !== syncPin) {
+          setToast({ message: 'Incorrect Sync PIN for this plan', type: 'info' });
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
+        saveToHistory();
+        setSeats(data.seats || []);
+        setRoomElements(data.roomElements || []);
+        setGroups(data.groups || DEFAULT_GROUPS);
+        setLastSynced(data.updatedAt?.toDate() || new Date());
+        setToast({ message: 'Plan loaded from Cloud!', type: 'success' });
+        setCloudPlanAvailable(false);
+      } else {
+        setToast({ message: 'No cloud plan found for this class', type: 'info' });
+      }
+    } catch (error) {
+      console.error('Cloud Load Error:', error);
+      setToast({ message: 'Failed to load from cloud', type: 'info' });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const checkForCloudPlan = async () => {
+    if (isInitialLoad.current) return;
+    try {
+      const planId = getCloudKey();
+      const docRef = doc(db, 'seatingPlans', planId);
+      const docSnap = await getDoc(docRef);
+      const exists = docSnap.exists();
+      setCloudPlanAvailable(exists);
+      
+      if (exists && !localStorage.getItem(getStorageKey())) {
+        setToast({ message: 'Seating plan found in Cloud!', type: 'info' });
+        setTimeout(() => setToast(null), 5000);
+      }
+    } catch (error) {
+      console.error('Check Cloud Plan Error:', error);
+    }
+  };
 
   // Load state when class metadata changes
   useEffect(() => {
@@ -174,6 +314,8 @@ export default function App() {
           setRoomElements([]);
           setGroups(DEFAULT_GROUPS);
         }
+        // Check cloud if local is empty
+        checkForCloudPlan();
       }
     };
 
@@ -191,7 +333,15 @@ export default function App() {
       groups
     };
     localStorage.setItem(key, JSON.stringify(state));
-  }, [seats, roomElements, groups]);
+    
+    // Auto-sync to cloud if enabled
+    if (isCloudSyncEnabled) {
+      const timeoutId = setTimeout(() => {
+        saveToCloud();
+      }, 2000); // Debounce cloud saves
+      return () => clearTimeout(timeoutId);
+    }
+  }, [seats, roomElements, groups, isCloudSyncEnabled]);
 
   const saveAsMyRoomTemplate = async () => {
     const template = {
@@ -817,99 +967,148 @@ export default function App() {
 
               <button 
                 onClick={() => setIsDeleteMode(!isDeleteMode)}
-                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all border-2 ${isDeleteMode ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all border-2 shadow-sm ${isDeleteMode ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'}`}
               >
-                <Trash2 size={16} />
-                <span className="hidden sm:inline">{isDeleteMode ? 'Delete mode ON' : 'Delete mode'}</span>
+                <Trash2 size={18} />
+                <span className="hidden sm:inline">{isDeleteMode ? 'DELETE MODE ON' : 'DELETE MODE'}</span>
               </button>
 
               <button 
                 onClick={addSeat}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-lg shadow-blue-100 active:scale-95"
               >
-                <Plus size={16} />
-                <span className="hidden sm:inline">+ Add seat</span>
-                <span className="sm:hidden">+ Seat</span>
+                <Plus size={18} />
+                <span className="hidden sm:inline">ADD SEAT</span>
+                <span className="sm:hidden">SEAT</span>
               </button>
 
-              <button 
-                onClick={resetAll}
-                className="px-3 md:px-4 py-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs md:text-sm font-semibold transition-all"
-              >
-                Reset
-              </button>
-
-              <div className="flex flex-col gap-1">
+              {clipboard?.type === 'seat' && (
                 <button 
-                  onClick={loadDraft}
-                  className="flex items-center gap-2 bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 text-blue-700 px-3 md:px-4 py-2 rounded-lg text-[10px] md:text-xs font-bold transition-all shadow-sm active:scale-95"
-                  title="Load the default demo layout"
+                  onClick={() => pasteItem(100, 100)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-lg shadow-emerald-100 active:scale-95 animate-in fade-in zoom-in duration-300"
+                  title="Paste Copied Seat"
                 >
-                  <RotateCcw size={14} />
-                  <span>Default Draft</span>
+                  <ClipboardPaste size={18} />
+                  <span className="hidden sm:inline">PASTE SEAT</span>
+                  <span className="sm:hidden">PASTE</span>
                 </button>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={applyMyRoomTemplate}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 border-2 border-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all shadow-md active:scale-95"
-                    title="Load your saved room architecture"
+              )}
+
+              <div className="h-8 w-[1px] bg-slate-100 mx-1 hidden md:block" />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative group">
+                  <select 
+                    value={draftYear}
+                    onChange={(e) => {
+                      setDraftYear(e.target.value);
+                      setIsChangingMetadata(true);
+                    }}
+                    className={`appearance-none bg-white border-2 rounded-xl px-3 py-2 md:px-4 md:py-2.5 pr-8 md:pr-10 text-[10px] md:text-xs font-black outline-none transition-all cursor-pointer shadow-sm ${isChangingMetadata ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-100 focus:border-blue-500'}`}
                   >
-                    <LayoutGrid size={14} />
-                    <span>Apply My Room</span>
-                  </button>
-                  <button 
-                    onClick={saveAsMyRoomTemplate}
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] md:text-xs font-bold transition-all"
-                    title="Save current furniture/seat positions as your room layout"
+                    {YEAR_GROUPS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" size={12} />
+                </div>
+
+                <div className="relative group">
+                  <select 
+                    value={draftSubject}
+                    onChange={(e) => {
+                      setDraftSubject(e.target.value);
+                      setIsChangingMetadata(true);
+                    }}
+                    className={`appearance-none bg-white border-2 rounded-xl px-3 py-2 md:px-4 md:py-2.5 pr-8 md:pr-10 text-[10px] md:text-xs font-black outline-none transition-all cursor-pointer shadow-sm ${isChangingMetadata ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-100 focus:border-blue-500'}`}
                   >
-                    <Save size={14} />
-                    <span>Save My Room Template</span>
-                  </button>
+                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" size={12} />
+                </div>
+
+                <div className="relative flex items-center gap-2">
+                  <input 
+                    type="text"
+                    value={draftCode}
+                    onChange={(e) => {
+                      setDraftCode(e.target.value.toUpperCase());
+                      setIsChangingMetadata(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') applyNewMetadata(false);
+                    }}
+                    placeholder="CLASS CODE"
+                    className={`bg-white border-2 rounded-xl px-3 py-2 md:px-4 md:py-2.5 text-[10px] md:text-xs font-black outline-none transition-all w-28 md:w-36 uppercase placeholder:text-slate-300 shadow-sm ${isChangingMetadata ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-100 focus:border-blue-500'}`}
+                  />
+                  
+                  {isChangingMetadata && (
+                    <div className="flex gap-1 animate-in slide-in-from-left-2 duration-300">
+                      <button 
+                        onClick={() => applyNewMetadata(true)}
+                        className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-sm transition-all text-[8px] font-black uppercase"
+                        title="Rename & Keep Layout"
+                      >
+                        RENAME
+                      </button>
+                      <button 
+                        onClick={() => applyNewMetadata(false)}
+                        className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm transition-all text-[8px] font-black uppercase"
+                        title="Switch Class"
+                      >
+                        SWITCH
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setDraftYear(yearGroup);
+                          setDraftSubject(subject);
+                          setDraftCode(classCode);
+                          setIsChangingMetadata(false);
+                        }}
+                        className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 shadow-sm transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
-
-              <button 
-                onClick={exportTemplate}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
-                title="Export Seating Plan"
-              >
-                <FileDown size={16} />
-                <span className="hidden sm:inline">Export</span>
-              </button>
-
-              <label className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all cursor-pointer" title="Import Seating Plan">
-                <FileUp size={16} />
-                <span className="hidden sm:inline">Import</span>
-                <input type="file" accept=".json" onChange={importTemplate} className="hidden" />
-              </label>
-
               <button 
                 onClick={handlePrint}
-                className="flex items-center gap-2 bg-[#1a1816] text-white px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-semibold hover:bg-slate-800 transition-all"
+                className="flex items-center gap-2 bg-slate-900 text-white px-5 md:px-6 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight hover:bg-slate-800 transition-all shadow-md active:scale-95 ml-auto"
               >
-                <Printer size={16} />
-                Print
+                <Printer size={18} />
+                <span className="hidden sm:inline">PRINT PLAN</span>
               </button>
 
-              <button 
-                onClick={handleSaveAsPDF}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
-                title="Save as PDF"
-              >
-                <FileDown size={16} />
-                <span className="hidden sm:inline">PDF</span>
-              </button>
-
-              <button 
-                onClick={handleSaveAsImage}
-                className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all"
-                title="Save as JPEG"
-              >
-                <ImageIcon size={16} />
-                <span className="hidden sm:inline">JPEG</span>
-              </button>
+              <div className="relative group">
+                <button 
+                  className="flex items-center gap-2 bg-white border-2 border-slate-100 hover:border-slate-200 text-slate-700 px-3 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-black transition-all shadow-sm"
+                >
+                  <FileDown size={16} />
+                  <span className="hidden sm:inline">Export</span>
+                  <ChevronDown size={14} className="text-slate-400" />
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button 
+                    onClick={handleSaveAsPDF}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+                      <FileDown size={14} />
+                    </div>
+                    Save as PDF
+                  </button>
+                  <button 
+                    onClick={handleSaveAsImage}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600">
+                      <ImageIcon size={14} />
+                    </div>
+                    Save as JPEG
+                  </button>
+                </div>
+              </div>
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
@@ -949,69 +1148,35 @@ export default function App() {
             </div>
           </div>
 
-          {/* Metadata Dropdowns */}
-          <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-4">
-            <button 
-              onClick={() => setIsWelcomeModalOpen(true)}
-              className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-bold hover:bg-slate-900 transition-all shadow-sm"
-            >
-              <Settings2 size={16} />
-              Setup Class
-            </button>
-
-            <div className="h-6 w-[1px] bg-slate-200 mx-1 hidden md:block" />
-
-            <div className="relative group">
-              <select 
-                value={yearGroup}
-                onChange={(e) => {
-                  saveToHistory();
-                  setYearGroup(e.target.value);
-                  setIsWelcomeModalOpen(true);
-                }}
-                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+          {/* Settings & Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4 mt-4">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsWelcomeModalOpen(true)}
+                className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs md:text-sm font-black hover:bg-slate-900 transition-all shadow-md active:scale-95"
               >
-                {YEAR_GROUPS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" size={16} />
+                <Settings2 size={16} />
+                Plan Settings
+              </button>
+
+              {isCloudSyncEnabled && (
+                <div 
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                    isSyncing ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  {isSyncing ? "Syncing" : "Cloud Active"}
+                </div>
+              )}
             </div>
 
-            <div className="relative group">
-              <select 
-                value={subject}
-                onChange={(e) => {
-                  saveToHistory();
-                  setSubject(e.target.value);
-                  setIsWelcomeModalOpen(true);
-                }}
-                className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
-              >
-                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" size={16} />
+            <div className="flex items-center gap-1.5 ml-auto">
+              {/* Zoom control moved to bottom bar */}
             </div>
+          </div>
 
-            <div className="relative">
-              <input 
-                type="text"
-                value={classCode}
-                onFocus={() => saveToHistory()}
-                onChange={(e) => {
-                  setClassCode(e.target.value.toUpperCase());
-                }}
-                onBlur={() => {
-                  if (classCode) setIsWelcomeModalOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setIsWelcomeModalOpen(true);
-                }}
-                placeholder="CLASS CODE"
-                className="bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all w-24 md:w-32 uppercase placeholder:text-slate-300"
-              />
-            </div>
-
-            <div className="h-6 w-[1px] bg-slate-300 mx-1 hidden md:block" />
-
+          <div className="flex items-center gap-3 mt-4">
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={() => addRoomElement('board')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
                 <Monitor size={14} /> <span className="hidden sm:inline">+ Whiteboard</span>
@@ -1034,7 +1199,7 @@ export default function App() {
             
             <button 
               onClick={() => setIsGroupModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all ml-auto"
             >
               <Settings2 size={16} /> Groups
             </button>
@@ -1560,7 +1725,7 @@ export default function App() {
       {/* Stats Summary & Zoom (Floating) */}
       {!isPrintMode && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md border border-slate-200 px-4 md:px-6 py-3 rounded-2xl md:rounded-full shadow-xl flex flex-col md:flex-row items-center gap-4 md:gap-6 z-10 print:hidden max-w-[90vw]">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 border-r border-slate-100 pr-4 md:pr-6">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-slate-400" />
               <span className="text-[10px] md:text-xs font-bold text-slate-600">Total: {seats.length}</span>
@@ -1575,27 +1740,34 @@ export default function App() {
             </div>
           </div>
 
-          <div className="h-4 w-[1px] bg-slate-200 hidden md:block" />
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Zoom</span>
-            <input 
-              type="range" 
-              min="0.3" 
-              max="1.5" 
-              step="0.1" 
-              value={zoom} 
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="w-24 md:w-32 accent-blue-600"
-            />
-            <span className="text-[10px] font-bold text-slate-600 min-w-[30px]">{Math.round(zoom * 100)}%</span>
-            <button 
-              onClick={() => setZoom(1)}
-              className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
-              title="Reset Zoom"
-            >
-              <RotateCcw size={12} />
-            </button>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zoom</span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setZoom(prev => Math.max(0.3, prev - 0.1))}
+                className="p-1 hover:bg-slate-100 text-slate-400 rounded-lg transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <input 
+                type="range"
+                min="0.3"
+                max="1.5"
+                step="0.05"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-20 md:w-24 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <button 
+                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                className="p-1 hover:bg-slate-100 text-slate-400 rounded-lg transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn size={14} />
+              </button>
+              <span className="text-[10px] md:text-xs font-black text-slate-500 min-w-[35px]">{Math.round(zoom * 100)}%</span>
+            </div>
           </div>
         </div>
       )}
@@ -1613,8 +1785,8 @@ export default function App() {
                   <Settings2 size={32} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">Classroom Setup</h2>
-                  <p className="text-slate-500 text-sm font-medium">Configure your plan before starting</p>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">Plan Settings</h2>
+                  <p className="text-slate-500 text-sm font-medium">Manage your class information and storage</p>
                 </div>
               </div>
 
@@ -1624,8 +1796,11 @@ export default function App() {
                     <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Year Group</label>
                     <div className="relative group">
                       <select 
-                        value={yearGroup}
-                        onChange={(e) => setYearGroup(e.target.value)}
+                        value={draftYear}
+                        onChange={(e) => {
+                          setDraftYear(e.target.value);
+                          setIsChangingMetadata(true);
+                        }}
                         className="w-full appearance-none bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
                       >
                         {YEAR_GROUPS.map(y => <option key={y} value={y}>{y}</option>)}
@@ -1638,8 +1813,11 @@ export default function App() {
                     <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Subject</label>
                     <div className="relative group">
                       <select 
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
+                        value={draftSubject}
+                        onChange={(e) => {
+                          setDraftSubject(e.target.value);
+                          setIsChangingMetadata(true);
+                        }}
                         className="w-full appearance-none bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
                       >
                         {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1653,12 +1831,45 @@ export default function App() {
                   <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Class Code / Group Name</label>
                   <input 
                     type="text"
-                    value={classCode}
-                    onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+                    value={draftCode}
+                    onChange={(e) => {
+                      setDraftCode(e.target.value.toUpperCase());
+                      setIsChangingMetadata(true);
+                    }}
                     placeholder="E.G. 10B/MA1"
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all uppercase placeholder:text-slate-300"
                   />
-                  <p className="text-[10px] text-slate-400 ml-1 font-medium italic">Data is automatically saved per Class Code.</p>
+                  <p className="text-[10px] text-slate-400 ml-1 font-medium italic">Name your class to save its unique layout.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Sync PIN (Optional)</label>
+                  <input 
+                    type="password"
+                    value={syncPin}
+                    onChange={(e) => setSyncPin(e.target.value)}
+                    placeholder="E.G. 1234"
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all placeholder:text-slate-300"
+                  />
+                  <p className="text-[10px] text-slate-400 ml-1 font-medium italic">Enter/Set a PIN to secure your cloud sync across devices.</p>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-2xl border-2 border-blue-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isCloudSyncEnabled ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                      <Cloud size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">Cloud Sync</h4>
+                      <p className="text-[10px] text-slate-500 font-medium">Sync plans across all your devices</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setIsCloudSyncEnabled(!isCloudSyncEnabled)}
+                    className={`w-12 h-6 rounded-full transition-all relative ${isCloudSyncEnabled ? 'bg-blue-600' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isCloudSyncEnabled ? 'left-7' : 'left-1'}`} />
+                  </button>
                 </div>
               </div>
 
@@ -1668,8 +1879,19 @@ export default function App() {
                     onClick={() => setIsWelcomeModalOpen(false)}
                     className="w-full bg-emerald-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-3"
                   >
-                    Resume Saved Plan
+                    Resume Local Plan
                     <Save size={18} />
+                  </button>
+                ) : cloudPlanAvailable ? (
+                  <button 
+                    onClick={() => {
+                      loadFromCloud();
+                      setIsWelcomeModalOpen(false);
+                    }}
+                    className="w-full bg-blue-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-3 animate-pulse"
+                  >
+                    Sync from Cloud
+                    <CloudDownload size={18} />
                   </button>
                 ) : (
                   <button 
@@ -1682,9 +1904,9 @@ export default function App() {
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-center">
-                    Import Template File
-                    <FileUp size={16} />
+                  <label className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-center group">
+                    <FileUp size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                    <span>Import JSON</span>
                     <input 
                       type="file" 
                       accept=".json" 
@@ -1695,37 +1917,72 @@ export default function App() {
                     />
                   </label>
 
-                  {localStorage.getItem('classroom-user-template') ? (
-                    <button 
-                      onClick={() => {
-                        applyMyRoomTemplate();
-                        setIsWelcomeModalOpen(false);
-                      }}
-                      className="flex-1 bg-blue-600 text-white rounded-2xl px-4 py-4 font-black text-xs hover:bg-blue-700 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      Use Draft Layout
-                      <LayoutGrid size={16} />
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={loadDraft}
-                      className="flex-1 bg-slate-100 text-slate-500 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-transparent"
-                    >
-                      Load Sample Draft
-                      <ClipboardPaste size={16} />
-                    </button>
-                  )}
+                  <button 
+                    onClick={exportTemplate}
+                    className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 group text-center"
+                  >
+                    <FileDown size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                    <span>Export JSON</span>
+                  </button>
+                </div>
+
+                <div className="h-px bg-slate-100 my-2" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button 
+                    onClick={saveAsMyRoomTemplate}
+                    className="flex-1 bg-white border-2 border-slate-200 text-slate-600 rounded-2xl px-4 py-4 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex flex-col items-center gap-1"
+                    title="Save current room setup as template"
+                  >
+                    <Save size={16} />
+                    Save Room Template
+                  </button>
+                  <button 
+                    onClick={resetAll}
+                    className="flex-1 bg-red-50 border-2 border-red-100 text-red-600 rounded-2xl px-4 py-4 font-black text-[10px] uppercase tracking-widest hover:bg-red-100 transition-all flex flex-col items-center gap-1"
+                  >
+                    <Trash2 size={16} />
+                    Reset Everything
+                  </button>
                 </div>
               </div>
             </div>
-            
-            <div className="bg-slate-50 px-8 py-4 border-t border-slate-100">
-              <p className="text-[10px] text-slate-500 font-bold text-center">
-                TIP: You can change these details later in the header dropdowns.
-              </p>
-            </div>
-          </motion.div>
-        </div>
+
+            <div className="p-6 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
+                {isChangingMetadata ? (
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button 
+                      onClick={() => applyNewMetadata(true)}
+                      className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all uppercase tracking-widest"
+                    >
+                      Move Layout
+                    </button>
+                    <button 
+                      onClick={() => applyNewMetadata(false)}
+                      className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all uppercase tracking-widest"
+                    >
+                      Switch Plan
+                    </button>
+                  </div>
+                ) : (
+                  <div className="hidden sm:block" />
+                )}
+                
+                <button 
+                  onClick={() => {
+                    if (isChangingMetadata) {
+                      applyNewMetadata(false);
+                    } else {
+                      setIsWelcomeModalOpen(false);
+                    }
+                  }}
+                  className="w-full sm:w-auto px-10 py-4 bg-slate-900 text-white rounded-[1.2rem] font-black text-sm hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-200 uppercase tracking-widest"
+                >
+                  Save & Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
       )}
 
       {/* Print Settings Modal */}
@@ -2049,41 +2306,33 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
       {/* Resize Handles */}
       {!isDeleteMode && !isPrintMode && (
         <>
-          {/* Right Edge */}
+          {/* Edges */}
           <motion.div
             drag="x"
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(seat.width + info.offset.x, seat.height);
-            }}
-            className="absolute top-1 -right-1 w-2 h-[calc(100%-8px)] cursor-ew-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(seat.width + info.offset.x, seat.height)}
+            className="absolute top-0 -right-1 w-2 h-full cursor-ew-resize z-30 hover:bg-blue-500/20 transition-colors"
             style={{ x: 0 }}
             onClick={(e) => e.stopPropagation()}
           />
-          {/* Bottom Edge */}
           <motion.div
             drag="y"
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(seat.width, seat.height + info.offset.y);
-            }}
-            className="absolute -bottom-1 left-1 w-[calc(100%-8px)] h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(seat.width, seat.height + info.offset.y)}
+            className="absolute -bottom-1 left-0 w-full h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 transition-colors"
             style={{ y: 0 }}
             onClick={(e) => e.stopPropagation()}
           />
-          {/* Bottom-Right Corner */}
+          
+          {/* Corner */}
           <motion.div
             drag
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(seat.width + info.offset.x, seat.height + info.offset.y);
-            }}
-            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(seat.width + info.offset.x, seat.height + info.offset.y)}
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-blue-600 rounded-sm shadow-sm"
             style={{ x: 0, y: 0 }}
             onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-sm shadow-sm" />
-          </motion.div>
+          />
         </>
       )}
     </motion.div>
@@ -2184,41 +2433,33 @@ function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDelete
       {/* Resize Handles */}
       {!isDeleteMode && !isPrintMode && (
         <>
-          {/* Right Edge */}
+          {/* Edges */}
           <motion.div
             drag="x"
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(element.width + info.offset.x, element.height);
-            }}
-            className="absolute top-1 -right-1 w-2 h-[calc(100%-8px)] cursor-ew-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(element.width + info.offset.x, element.height)}
+            className="absolute top-0 -right-1 w-2 h-full cursor-ew-resize z-30 hover:bg-blue-500/20 transition-colors"
             style={{ x: 0 }}
             onClick={(e) => e.stopPropagation()}
           />
-          {/* Bottom Edge */}
           <motion.div
             drag="y"
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(element.width, element.height + info.offset.y);
-            }}
-            className="absolute -bottom-1 left-1 w-[calc(100%-8px)] h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(element.width, element.height + info.offset.y)}
+            className="absolute -bottom-1 left-0 w-full h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 transition-colors"
             style={{ y: 0 }}
             onClick={(e) => e.stopPropagation()}
           />
-          {/* Bottom-Right Corner */}
+
+          {/* Corner */}
           <motion.div
             drag
             dragMomentum={false}
-            onDragEnd={(_, info) => {
-              onResize(element.width + info.offset.x, element.height + info.offset.y);
-            }}
-            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            onDragEnd={(_, info) => onResize(element.width + info.offset.x, element.height + info.offset.y)}
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border-2 border-blue-600 rounded-sm shadow-sm"
             style={{ x: 0, y: 0 }}
             onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-sm shadow-sm" />
-          </motion.div>
+          />
         </>
       )}
     </motion.div>
