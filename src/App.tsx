@@ -620,62 +620,6 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const exportTemplate = () => {
-    const template = {
-      seats,
-      roomElements,
-      groups,
-      yearGroup,
-      subject,
-      classCode
-    };
-    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const fileName = `${yearGroup} - ${classCode || 'NoCode'} - ${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
-    a.download = `${fileName}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        setConfirmModal({
-          isOpen: true,
-          title: 'Import Seating Plan',
-          message: 'This will replace your current layout and all student data with the imported file. Continue?',
-          onConfirm: () => {
-            saveToHistory();
-            // Use existing IDs if they exist to maintain consistency, or generate new ones if needed
-            // But for a full import, we usually want the exact state
-            setSeats(data.seats);
-            setRoomElements(data.roomElements);
-            if (data.groups) setGroups(data.groups);
-            if (data.yearGroup) setYearGroup(data.yearGroup);
-            if (data.subject) setSubject(data.subject);
-            if (data.classCode) setClassCode(data.classCode);
-            setConfirmModal(null);
-            setIsWelcomeModalOpen(false);
-            setToast({ message: 'Seating plan imported successfully', type: 'success' });
-          }
-        });
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        setToast({ message: 'Failed to import file. Invalid format.', type: 'info' });
-      }
-    };
-    reader.readAsText(file);
-    // Reset input so the same file can be imported again
-    e.target.value = '';
-  };
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1042,6 +986,7 @@ export default function App() {
         
         setToast({ message: 'Plan restored from file!', type: 'success' });
         saveToHistory();
+        setIsWelcomeModalOpen(false); // Close settings automatically
         setTimeout(() => setToast(null), 3000);
       } catch (err: any) {
         console.error('Import Error:', err);
@@ -2099,10 +2044,10 @@ export default function App() {
                 {localStorage.getItem(`seating-plan-${yearGroup}-${subject}-${classCode || 'default'}`) ? (
                   <button 
                     onClick={() => setIsWelcomeModalOpen(false)}
-                    className="w-full bg-emerald-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-3"
+                    className="w-full bg-emerald-600 text-white rounded-2xl px-6 py-4 font-black text-sm uppercase tracking-tight hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-3"
                   >
-                    Resume Local Plan
-                    <Save size={18} />
+                    Back to Classroom
+                    <DoorOpen size={18} />
                   </button>
                 ) : cloudPlanAvailable ? (
                   <button 
@@ -2127,23 +2072,21 @@ export default function App() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-center group">
-                    <FileUp size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                    <Upload size={16} className="text-indigo-500 group-hover:scale-110 transition-transform" />
                     <span>Import JSON</span>
                     <input 
                       type="file" 
                       accept=".json" 
-                      onChange={(e) => {
-                        importTemplate(e);
-                      }} 
+                      onChange={handleImportJSON} 
                       className="hidden" 
                     />
                   </label>
 
                   <button 
-                    onClick={exportTemplate}
+                    onClick={handleExportJSON}
                     className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 group text-center"
                   >
-                    <FileDown size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                    <FileJson size={16} className="text-amber-500 group-hover:scale-110 transition-transform" />
                     <span>Export JSON</span>
                   </button>
                 </div>
