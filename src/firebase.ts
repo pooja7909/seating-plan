@@ -19,7 +19,11 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth();
 
-// Sign in anonymously on load
-signInAnonymously(auth).catch((error) => {
-  console.error("Firebase Anonymous Auth Error:", error);
+// Sign in anonymously on load if no user exists
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    signInAnonymously(auth).catch((error) => {
+      console.error("Firebase Anonymous Auth Error:", error);
+    });
+  }
 });
