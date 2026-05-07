@@ -249,6 +249,7 @@ export default function App() {
     setSeats(draftSeats);
     setRoomElements(DRAFT_LAYOUT.roomElements);
     setGroups(DEFAULT_GROUPS);
+    setIsWelcomeModalOpen(false);
     setToast({ message: 'Default draft layout loaded!', type: 'success' });
     setTimeout(() => setToast(null), 3000);
   };
@@ -429,6 +430,7 @@ export default function App() {
             if (data.subject) setSubject(data.subject);
             if (data.classCode) setClassCode(data.classCode);
             setConfirmModal(null);
+            setIsWelcomeModalOpen(false);
             setToast({ message: 'Seating plan imported successfully', type: 'success' });
           }
         });
@@ -1639,27 +1641,51 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-10 flex flex-col gap-3">
+              <div className="mt-10 flex flex-col gap-4">
                 <button 
                   onClick={() => setIsWelcomeModalOpen(false)}
                   className="w-full bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
                 >
-                  Start Seating Plan
+                  Start from Scratch
                   <Plus size={18} />
                 </button>
 
-                {localStorage.getItem('classroom-user-template') && (
-                  <button 
-                    onClick={() => {
-                      applyMyRoomTemplate();
-                      setIsWelcomeModalOpen(false);
-                    }}
-                    className="w-full bg-blue-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-3"
-                  >
-                    Use My Room Layout
-                    <LayoutGrid size={18} />
-                  </button>
-                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-center">
+                    Import Template File
+                    <FileUp size={16} />
+                    <input 
+                      type="file" 
+                      accept=".json" 
+                      onChange={(e) => {
+                        importTemplate(e);
+                        // The confirmation modal will handle the flow
+                      }} 
+                      className="hidden" 
+                    />
+                  </label>
+
+                  {localStorage.getItem('classroom-user-template') ? (
+                    <button 
+                      onClick={() => {
+                        applyMyRoomTemplate();
+                        setIsWelcomeModalOpen(false);
+                      }}
+                      className="flex-1 bg-blue-600 text-white rounded-2xl px-4 py-4 font-black text-xs hover:bg-blue-700 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      Use Saved Layout
+                      <LayoutGrid size={16} />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={loadDraft}
+                      className="flex-1 bg-slate-100 text-slate-500 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-transparent"
+                    >
+                      Load Sample Draft
+                      <ClipboardPaste size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             
