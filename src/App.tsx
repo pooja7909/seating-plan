@@ -195,7 +195,7 @@ export default function App() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isCloudSyncEnabled, setIsCloudSyncEnabled] = useState(() => {
-    return localStorage.getItem('cloud-sync-enabled') === 'true';
+    return localStorage.getItem('cloud-sync-enabled') !== 'false';
   });
   
   useEffect(() => {
@@ -972,7 +972,7 @@ export default function App() {
     link.download = `${fileName}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setToast({ message: 'Plan exported as JSON file!', type: 'success' });
+    setToast({ message: 'Backup file saved to your computer!', type: 'success' });
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -987,7 +987,7 @@ export default function App() {
         
         // Basic validation
         if (!data.seats || !Array.isArray(data.seats)) {
-          throw new Error('Invalid file format: Missing seats data');
+          throw new Error('This file doesn\'t look like a valid Seating Plan backup.');
         }
 
         setSeats(data.seats);
@@ -997,12 +997,12 @@ export default function App() {
         if (data.subject) setSubject(data.subject);
         if (data.classCode) setClassCode(data.classCode);
         
-        setToast({ message: 'Plan imported successfully!', type: 'success' });
+        setToast({ message: 'Plan restored from file!', type: 'success' });
         saveToHistory();
         setTimeout(() => setToast(null), 3000);
       } catch (err: any) {
         console.error('Import Error:', err);
-        setToast({ message: `Import Failed: ${err.message || 'Invalid JSON file'}`, type: 'info' });
+        setToast({ message: `Load Failed: ${err.message || 'Invalid file'}`, type: 'info' });
         setTimeout(() => setToast(null), 4000);
       }
       // Reset input so the same file can be selected again
@@ -1105,6 +1105,38 @@ export default function App() {
                 <span className="hidden sm:inline">USE DRAFT</span>
                 <span className="sm:hidden">USE</span>
               </button>
+
+              <div className="h-8 w-[1px] bg-slate-100 mx-1 hidden lg:block" />
+
+              <div className="relative group">
+                <button 
+                  onClick={handleExportJSON}
+                  className="flex items-center gap-2 bg-white border-2 border-slate-100 hover:bg-slate-50 text-slate-600 px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-sm active:scale-95"
+                >
+                  <FileJson size={18} className="text-amber-500" />
+                  <span className="hidden lg:inline">SAVE TO COMPUTER</span>
+                  <span className="hidden sm:inline lg:hidden">BACKUP</span>
+                  <span className="sm:hidden text-[10px]">SAVE FILE</span>
+                </button>
+                <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 leading-relaxed shadow-xl">
+                  <strong>SAVE TO COMPUTER:</strong> Downloads a tiny backup file to your "Downloads" folder. Use this to keep a copy of your plan or share it with a colleague!
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button 
+                  onClick={() => document.getElementById('json-import-input')?.click()}
+                  className="flex items-center gap-2 bg-white border-2 border-slate-100 hover:bg-slate-50 text-slate-600 px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-sm active:scale-95"
+                >
+                  <Upload size={18} className="text-indigo-500" />
+                  <span className="hidden lg:inline">LOAD FROM FILE</span>
+                  <span className="hidden sm:inline lg:hidden">RESTORE</span>
+                  <span className="sm:hidden text-[10px]">LOAD FILE</span>
+                </button>
+                <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 leading-relaxed shadow-xl">
+                  <strong>LOAD FROM FILE:</strong> Use this to open a plan you previously saved to your computer. Just select the SeatingPlan file you downloaded earlier.
+                </div>
+              </div>
 
               {clipboard?.type === 'seat' && (
                 <button 
@@ -1230,25 +1262,6 @@ export default function App() {
                       <ImageIcon size={14} />
                     </div>
                     Save as JPEG
-                  </button>
-                  <div className="h-[1px] bg-slate-100 mx-2" />
-                  <button 
-                    onClick={handleExportJSON}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="p-1.5 bg-amber-50 rounded-lg text-amber-600">
-                      <FileJson size={14} />
-                    </div>
-                    Export as JSON
-                  </button>
-                  <button 
-                    onClick={() => document.getElementById('json-import-input')?.click()}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
-                      <Upload size={14} />
-                    </div>
-                    Import JSON
                   </button>
                 </div>
               </div>
