@@ -1779,94 +1779,113 @@ export default function App() {
               </button>
             </div>
             
-            <div className="p-8 overflow-auto custom-scrollbar space-y-8">
+            <div className="p-8 overflow-auto custom-scrollbar space-y-10">
               <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-blue-600">1. Setting Up Your Class</h3>
-                <div className="space-y-2">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#d4a84b]">Step 1: Classroom Setup</h3>
+                <div className="bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm space-y-3">
                   <p className="text-slate-600 text-sm leading-relaxed">
-                    Start by entering your <strong>Year Group</strong>, <strong>Subject</strong>, and <strong>Class Code</strong> in the top left corner. 
+                    When you first open the app, you'll see the <strong>Classroom Setup</strong> screen.
                   </p>
-                  <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
-                    <strong>Note:</strong> The app automatically saves your progress for each unique class combination. If you change the Subject, you'll see the layout saved for that specific group.
-                  </p>
-                </div>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">2. Designing Your Room</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
-                    <h4 className="font-bold text-slate-800 mb-1">Adding Elements</h4>
-                    <p className="text-xs text-slate-500">Use the <strong>"Add to Room"</strong> sidebar to drag desks, chairs, doors, and boards onto the grid.</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
-                    <h4 className="font-bold text-slate-800 mb-1">Student Names</h4>
-                    <p className="text-xs text-slate-500">Double-click any desk to type a student's name. They will be added to the layout immediately.</p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">3. Organizing Groups</h3>
-                <div className="space-y-2">
-                  <p className="text-slate-600 text-sm leading-relaxed">
-                    Click <strong>"Groups"</strong> in the top sidebar to create sub-groups (e.g., "Reading Group A" or "High Ability"). 
-                  </p>
-                  <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2">
-                    <li>Assign a color to each group.</li>
-                    <li>When you edit a student, select their group to see the desk change color.</li>
-                    <li>The <strong>Colour Key</strong> in the header helps you track who belongs where.</li>
+                  <ul className="list-disc list-inside text-sm text-slate-600 space-y-2 ml-2">
+                    <li><strong>Year Group & Subject:</strong> Helps you identify which class you're working on.</li>
+                    <li><strong>Class Code:</strong> This is the <u>unique identifier</u> for your saving. Each Class Code gets its own separate layout and student list.</li>
                   </ul>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight italic">Tip: You can change these details later by clicking the names in the top header.</p>
                 </div>
               </section>
 
               <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">4. Templates (The Time Saver)</h3>
+                <h3 className="text-sm font-black uppercase tracking-widest text-blue-600">Step 2: Design Your Architecture</h3>
+                <div className="space-y-3">
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    Before adding students, set up your room furniture:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                      <h4 className="font-bold text-slate-800 text-sm mb-1">Add Items</h4>
+                      <p className="text-xs text-slate-500">Drag desks, chairs, whiteboards, and doors from the side menu onto your classroom grid.</p>
+                    </div>
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                      <h4 className="font-bold text-slate-800 text-sm mb-1">Customize</h4>
+                      <p className="text-xs text-slate-500">Double-click any item to change its label, size, or colour (e.g. making a desk yellow).</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-emerald-600">Step 3: Save & Reuse Templates</h3>
+                <div className="bg-emerald-50/50 p-6 rounded-3xl border-2 border-emerald-100 space-y-6">
+                  <div className="flex gap-4 items-start">
+                    <div className="w-10 h-10 bg-emerald-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white shadow-lg">
+                      <Save size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-sm uppercase">Save My Room Template</h4>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        Once your desks are exactly where you want them, click this. It "freezes" your furniture layout <strong>without</strong> student names. 
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <div className="w-10 h-10 bg-white border-2 border-emerald-200 rounded-xl flex-shrink-0 flex items-center justify-center text-emerald-600 shadow-sm">
+                      <ClipboardPaste size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-sm uppercase">Apply My Room</h4>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        Starting a new subject or year group? Change your Class Code, then click this to instantly "teleport" your furniture layout there so you don't have to redraw it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Step 4: Student Lists & Groups</h3>
                 <div className="space-y-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="w-8 h-8 bg-slate-100 rounded flex-shrink-0 flex items-center justify-center text-slate-600 font-bold text-xs">A</div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">Save My Room Template</h4>
-                      <p className="text-xs text-slate-500 italic">Click this once you've placed your furniture but before you add students.</p>
-                      <p className="text-xs text-slate-600 mt-1">This "freezes" your architectural layout so you don't have to redraw it for every class.</p>
-                    </div>
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                    <h4 className="font-bold text-slate-800 text-sm mb-1">Adding Names</h4>
+                    <p className="text-xs text-slate-600 mb-2">Double-click a desk and type a student's name. You can also track their <strong>Attendance</strong> or <strong>Support Needs</strong>.</p>
                   </div>
-                  <div className="flex gap-4 items-start">
-                    <div className="w-8 h-8 bg-slate-100 rounded flex-shrink-0 flex items-center justify-center text-slate-600 font-bold text-xs">B</div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">Apply My Room</h4>
-                      <p className="text-xs text-slate-500 italic">Starting a new class?</p>
-                      <p className="text-xs text-slate-600 mt-1">Select your new Class Code and click this button to instantly teleport your saved desk arrangement into the new view.</p>
+                  
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                    <h4 className="font-bold text-slate-800 text-sm mb-1">Organizing Groups</h4>
+                    <p className="text-xs text-slate-600">Click <strong>Groups</strong> in the top menu to create colour-coded sets (e.g. <em>Reading A</em>). Assign students to these groups to see their desks change colour instantly.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#4f46e5]">Step 5: Exporting & Shared Use</h3>
+                <div className="p-6 bg-[#4f46e5] rounded-3xl text-white shadow-xl shadow-indigo-100">
+                  <h4 className="font-bold text-base mb-2">Moving your plan between computers?</h4>
+                  <p className="text-xs text-indigo-100 leading-relaxed mb-4">
+                    You don't need a login or special accounts.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/10 p-3 rounded-xl border border-white/20">
+                      <div className="font-bold text-[10px] uppercase mb-1">On Device A</div>
+                      <p className="text-[11px]">Click <strong>Export</strong> to save a <strong>.json</strong> file to your downloads.</p>
+                    </div>
+                    <div className="bg-white/10 p-3 rounded-xl border border-white/20">
+                      <div className="font-bold text-[10px] uppercase mb-1">On Device B</div>
+                      <p className="text-[11px]">Click <strong>Import</strong> and select that file. Your plan opens exactly as you left it.</p>
                     </div>
                   </div>
                 </div>
               </section>
 
               <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-blue-600">5. Moving Between Devices</h3>
-                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                  <p className="text-sm text-blue-800 font-medium mb-3">No login or installations (like VS Code) required!</p>
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-1">How to export:</h4>
-                      <p className="text-xs text-slate-600">Click <strong>Export</strong> and select <strong>Export Template (JSON)</strong>. This saves a file to your computer containing everything.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-1">How to import:</h4>
-                      <p className="text-xs text-slate-600">On your second device, click <strong>Import</strong> and select that file. Your room will open exactly as you left it.</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">6. Printing your Plan</h3>
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Step 6: Printing</h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Click <strong>PDF Export</strong>. You can choose <strong>Portrait</strong> or <strong>Landscape</strong>. 
-                  The app will generate a clean sheet with the room layout, student names, and your class details ready for your teacher's folder.
+                  Click <strong>PDF Export</strong>. Choose <strong>Landscape</strong> for wide rooms. 
+                  This creates a professional, clean document for your teacher's folder or to hand to a substitute teacher.
                 </p>
               </section>
             </div>
+
 
             <div className="p-6 bg-white border-t border-slate-100 flex justify-end">
               <button 
