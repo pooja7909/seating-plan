@@ -12,7 +12,6 @@ import {
   Trash2, 
   Settings2, 
   User, 
-  Users, 
   CheckCircle2, 
   XCircle, 
   Target, 
@@ -47,7 +46,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db, auth, signInWithGoogle } from './firebase';
+import { db, auth } from './firebase';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
 const GRID_SIZE = 20;
@@ -1987,30 +1986,8 @@ export default function App() {
                 <div>
                   <h2 className="text-2xl font-black text-slate-800 tracking-tight">Plan Settings</h2>
                   
-                  {/* Sync Identity section */}
+                  {/* Sync Status section */}
                   <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider">Sync Account</h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {auth.currentUser?.isAnonymous 
-                            ? "Logged in anonymously (Device-only)" 
-                            : `Signed in as ${auth.currentUser?.email}`}
-                        </p>
-                      </div>
-                      {auth.currentUser?.isAnonymous && (
-                        <button 
-                          onClick={signInWithGoogle}
-                          className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
-                        >
-                          <Users size={14} className="text-blue-500" />
-                          Sign in with Google
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="h-[1px] bg-slate-200/50" />
-
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider">Cloud Data Status</h4>
