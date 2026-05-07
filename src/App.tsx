@@ -47,7 +47,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { db, auth, signInWithGoogle } from './firebase';
 import { SeatData, StudentGroup, StudentStatus, ClassroomState, RoomElement, ElementType } from './types';
 
 const GRID_SIZE = 20;
@@ -205,6 +205,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [cloudPlanAvailable, setCloudPlanAvailable] = useState<boolean>(false);
+  const [cloudPlanInfo, setCloudPlanInfo] = useState<{ ownerId: string; hasPin: boolean } | null>(null);
   
   // Draft metadata for the header to prevent instant switching
   const [draftYear, setDraftYear] = useState(yearGroup);
@@ -251,10 +252,35 @@ export default function App() {
   const saveToCloud = async (force: boolean = false) => {
     if (!isCloudSyncEnabled && !force) return;
     if (!auth.currentUser) return;
+
+    // Check if we already know this exists and we aren't the owner
+    // If we have cloud info and UID mismatch, and no PIN set locally that could authorize us,
+    // we skip auto-sync to avoid "Permission Denied" noise on new devices.
+    if (!force && cloudPlanInfo && cloudPlanInfo.ownerId !== auth.currentUser.uid && !syncPin) {
+      console.log('Skipping auto-sync: Cloud plan exists and we are not the owner/no PIN.');
+      return;
+    }
     
     setIsSyncing(true);
     try {
       const planId = getCloudKey();
+      
+      // Safety: Before auto-saving, check if we might be about to hit a permissions wall
+      // If we don't have cloudPlanInfo yet, we fetch the doc to check ownership
+      if (!force) {
+        const docSnap = await getDoc(doc(db, 'seatingPlans', planId));
+        if (docSnap.exists()) {
+          const remoteData = docSnap.data();
+          if (remoteData.ownerId !== auth.currentUser.uid && remoteData.pin !== syncPin) {
+            console.log('Skipping auto-sync: Not the owner and PIN is missing/incorrect.');
+            setCloudPlanAvailable(true);
+            setCloudPlanInfo({ ownerId: remoteData.ownerId, hasPin: !!remoteData.pin });
+            setIsSyncing(false);
+            return;
+          }
+        }
+      }
+
       const planData = {
         yearGroup,
         subject,
@@ -269,13 +295,24 @@ export default function App() {
       
       await setDoc(doc(db, 'seatingPlans', planId), planData);
       setLastSynced(new Date());
-      setToast({ message: 'Synced to Cloud!', type: 'success' });
+      setCloudPlanInfo({ ownerId: auth.currentUser.uid, hasPin: !!syncPin });
+      setCloudPlanAvailable(true);
+      if (force) {
+        setToast({ message: 'Synced to Cloud!', type: 'success' });
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `seatingPlans/${getCloudKey()}`);
-      setToast({ message: 'Cloud Sync Failed', type: 'info' });
+      const err = handleFirestoreError(error, OperationType.WRITE, `seatingPlans/${getCloudKey()}`);
+      if (err.error.includes('permission-denied')) {
+        console.warn('Sync blocked: Permission Denied (Needs PIN?)');
+        if (force) {
+          setToast({ message: 'Sync Denied: Locked by another device. Use your PIN.', type: 'info' });
+        }
+      } else {
+        if (force) setToast({ message: 'Cloud Sync Failed', type: 'info' });
+      }
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setToast(null), 3000);
+      if (force) setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -321,9 +358,16 @@ export default function App() {
       const exists = docSnap.exists();
       setCloudPlanAvailable(exists);
       
-      if (exists && !localStorage.getItem(getStorageKey())) {
-        setToast({ message: 'Seating plan found in Cloud!', type: 'info' });
-        setTimeout(() => setToast(null), 5000);
+      if (exists) {
+        const data = docSnap.data();
+        setCloudPlanInfo({ ownerId: data.ownerId, hasPin: !!data.pin });
+        
+        if (!localStorage.getItem(getStorageKey())) {
+          setToast({ message: `Plan found in Cloud! Click "Load from Cloud" in Settings to restore.`, type: 'info' });
+          setTimeout(() => setToast(null), 8000);
+        }
+      } else {
+        setCloudPlanInfo(null);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `seatingPlans/${getCloudKey()}`);
@@ -1119,7 +1163,7 @@ export default function App() {
                   <span className="sm:hidden text-[10px]">SAVE FILE</span>
                 </button>
                 <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 leading-relaxed shadow-xl">
-                  <strong>SAVE TO COMPUTER:</strong> Downloads a tiny backup file to your "Downloads" folder. Use this to keep a copy of your plan or share it with a colleague!
+                  <strong>SAVE TO COMPUTER:</strong> Downloads a tiny backup file to your "Downloads" folder. This works even if you are offline or having sync issues.
                 </div>
               </div>
 
@@ -1134,7 +1178,7 @@ export default function App() {
                   <span className="sm:hidden text-[10px]">LOAD FILE</span>
                 </button>
                 <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 leading-relaxed shadow-xl">
-                  <strong>LOAD FROM FILE:</strong> Use this to open a plan you previously saved to your computer. Just select the SeatingPlan file you downloaded earlier.
+                  <strong>LOAD FROM FILE:</strong> Open a plan you previously saved to your computer. Great for switching computers if cloud sync is blocked by school filters.
                 </div>
               </div>
 
@@ -1942,6 +1986,51 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-slate-800 tracking-tight">Plan Settings</h2>
+                  
+                  {/* Sync Identity section */}
+                  <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider">Sync Account</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {auth.currentUser?.isAnonymous 
+                            ? "Logged in anonymously (Device-only)" 
+                            : `Signed in as ${auth.currentUser?.email}`}
+                        </p>
+                      </div>
+                      {auth.currentUser?.isAnonymous && (
+                        <button 
+                          onClick={signInWithGoogle}
+                          className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
+                        >
+                          <Users size={14} className="text-blue-500" />
+                          Sign in with Google
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="h-[1px] bg-slate-200/50" />
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider">Cloud Data Status</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {cloudPlanAvailable 
+                            ? (cloudPlanInfo?.ownerId === auth.currentUser?.uid ? "You own the cloud version." : "Locked by another device (PIN required).")
+                            : "No cloud copy exists for this class yet."}
+                        </p>
+                      </div>
+                      {cloudPlanAvailable && (
+                        <button 
+                          onClick={loadFromCloud}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-black shadow-md transition-all active:scale-95"
+                        >
+                          <CloudDownload size={14} />
+                          RESTORE FROM CLOUD
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <p className="text-slate-500 text-sm font-medium">Manage your class information and storage</p>
                 </div>
               </div>
