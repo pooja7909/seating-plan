@@ -30,6 +30,7 @@ import {
   FileDown,
   FileUp,
   Info,
+  X,
   Undo2,
   Redo2,
   LayoutGrid,
@@ -143,6 +144,7 @@ export default function App() {
     orientation: 'landscape'
   });
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
@@ -774,6 +776,13 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              <button 
+                onClick={() => setIsHelpModalOpen(true)}
+                className="p-2 bg-white hover:bg-slate-50 text-slate-500 rounded-lg border-2 border-slate-100 transition-all"
+                title="How to Use Guide"
+              >
+                <Info size={20} />
+              </button>
 
               <div className="flex flex-wrap items-center gap-2 mr-2 md:mr-4">
                 <span className="text-[10px] md:text-xs text-[#7a746c] hidden sm:inline">Colour key:</span>
@@ -1743,6 +1752,129 @@ export default function App() {
                   <Printer size={18} />
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* Help / Guide Modal */}
+      {isHelpModalOpen && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-[#faf9f7] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-white">
+                  <Info size={20} />
+                </div>
+                <h2 className="text-xl font-black text-slate-800">Teacher's Quick Guide</h2>
+              </div>
+              <button 
+                onClick={() => setIsHelpModalOpen(false)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-8 overflow-auto custom-scrollbar space-y-8">
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-blue-600">1. Setting Up Your Class</h3>
+                <div className="space-y-2">
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    Start by entering your <strong>Year Group</strong>, <strong>Subject</strong>, and <strong>Class Code</strong> in the top left corner. 
+                  </p>
+                  <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+                    <strong>Note:</strong> The app automatically saves your progress for each unique class combination. If you change the Subject, you'll see the layout saved for that specific group.
+                  </p>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">2. Designing Your Room</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                    <h4 className="font-bold text-slate-800 mb-1">Adding Elements</h4>
+                    <p className="text-xs text-slate-500">Use the <strong>"Add to Room"</strong> sidebar to drag desks, chairs, doors, and boards onto the grid.</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200">
+                    <h4 className="font-bold text-slate-800 mb-1">Student Names</h4>
+                    <p className="text-xs text-slate-500">Double-click any desk to type a student's name. They will be added to the layout immediately.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">3. Organizing Groups</h3>
+                <div className="space-y-2">
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    Click <strong>"Groups"</strong> in the top sidebar to create sub-groups (e.g., "Reading Group A" or "High Ability"). 
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2">
+                    <li>Assign a color to each group.</li>
+                    <li>When you edit a student, select their group to see the desk change color.</li>
+                    <li>The <strong>Colour Key</strong> in the header helps you track who belongs where.</li>
+                  </ul>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">4. Templates (The Time Saver)</h3>
+                <div className="space-y-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 bg-slate-100 rounded flex-shrink-0 flex items-center justify-center text-slate-600 font-bold text-xs">A</div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">Save My Room Template</h4>
+                      <p className="text-xs text-slate-500 italic">Click this once you've placed your furniture but before you add students.</p>
+                      <p className="text-xs text-slate-600 mt-1">This "freezes" your architectural layout so you don't have to redraw it for every class.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 bg-slate-100 rounded flex-shrink-0 flex items-center justify-center text-slate-600 font-bold text-xs">B</div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">Apply My Room</h4>
+                      <p className="text-xs text-slate-500 italic">Starting a new class?</p>
+                      <p className="text-xs text-slate-600 mt-1">Select your new Class Code and click this button to instantly teleport your saved desk arrangement into the new view.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-blue-600">5. Moving Between Devices</h3>
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                  <p className="text-sm text-blue-800 font-medium mb-3">No login or installations (like VS Code) required!</p>
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-1">How to export:</h4>
+                      <p className="text-xs text-slate-600">Click <strong>Export</strong> and select <strong>Export Template (JSON)</strong>. This saves a file to your computer containing everything.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-1">How to import:</h4>
+                      <p className="text-xs text-slate-600">On your second device, click <strong>Import</strong> and select that file. Your room will open exactly as you left it.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">6. Printing your Plan</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Click <strong>PDF Export</strong>. You can choose <strong>Portrait</strong> or <strong>Landscape</strong>. 
+                  The app will generate a clean sheet with the room layout, student names, and your class details ready for your teacher's folder.
+                </p>
+              </section>
+            </div>
+
+            <div className="p-6 bg-white border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setIsHelpModalOpen(false)}
+                className="px-6 py-3 bg-slate-800 text-white font-bold rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
+              >
+                Got it, thanks!
+              </button>
             </div>
           </motion.div>
         </div>
