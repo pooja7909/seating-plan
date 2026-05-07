@@ -581,6 +581,23 @@ export default function App() {
     }
   };
 
+  const updateSize = (id: string, width: number, height: number, isSeat: boolean) => {
+    const minSize = 20;
+    const finalWidth = snapToGrid ? Math.max(minSize, Math.round(width / GRID_SIZE) * GRID_SIZE) : Math.max(minSize, width);
+    const finalHeight = snapToGrid ? Math.max(minSize, Math.round(height / GRID_SIZE) * GRID_SIZE) : Math.max(minSize, height);
+
+    const currentItem = isSeat ? seats.find(s => s.id === id) : roomElements.find(e => e.id === id);
+    if (currentItem && (currentItem.width !== finalWidth || currentItem.height !== finalHeight)) {
+      saveToHistory();
+    }
+
+    if (isSeat) {
+      setSeats(prev => prev.map(s => s.id === id ? { ...s, width: finalWidth, height: finalHeight } : s));
+    } else {
+      setRoomElements(prev => prev.map(e => e.id === id ? { ...e, width: finalWidth, height: finalHeight } : e));
+    }
+  };
+
   const handleDoubleClick = (item: SeatData | RoomElement, isSeat: boolean) => {
     if (isDeleteMode) {
       deleteItem(item.id, isSeat);
@@ -1134,6 +1151,8 @@ export default function App() {
               onDelete={() => deleteItem(element.id, false)}
               isDeleteMode={isDeleteMode}
               onCopy={() => copyElement(element)}
+              onResize={(w, h) => updateSize(element.id, w, h, false)}
+              isPrintMode={isPrintMode}
             />
           ))}
 
@@ -1149,6 +1168,8 @@ export default function App() {
                 onDelete={() => deleteItem(seat.id, true)}
                 isDeleteMode={isDeleteMode}
                 onCopy={() => copySeat(seat)}
+                onResize={(w, h) => updateSize(seat.id, w, h, true)}
+                isPrintMode={isPrintMode}
               />
             ))}
           </AnimatePresence>
@@ -1642,13 +1663,23 @@ export default function App() {
               </div>
 
               <div className="mt-10 flex flex-col gap-4">
-                <button 
-                  onClick={() => setIsWelcomeModalOpen(false)}
-                  className="w-full bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
-                >
-                  Start from Scratch
-                  <Plus size={18} />
-                </button>
+                {localStorage.getItem(`seating-plan-${yearGroup}-${subject}-${classCode || 'default'}`) ? (
+                  <button 
+                    onClick={() => setIsWelcomeModalOpen(false)}
+                    className="w-full bg-emerald-600 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    Resume Saved Plan
+                    <Save size={18} />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setIsWelcomeModalOpen(false)}
+                    className="w-full bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    Start from Scratch
+                    <Plus size={18} />
+                  </button>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="flex-1 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl px-4 py-4 font-black text-xs hover:bg-slate-50 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-center">
@@ -1659,7 +1690,6 @@ export default function App() {
                       accept=".json" 
                       onChange={(e) => {
                         importTemplate(e);
-                        // The confirmation modal will handle the flow
                       }} 
                       className="hidden" 
                     />
@@ -1673,7 +1703,7 @@ export default function App() {
                       }}
                       className="flex-1 bg-blue-600 text-white rounded-2xl px-4 py-4 font-black text-xs hover:bg-blue-700 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                      Use Saved Layout
+                      Use Draft Layout
                       <LayoutGrid size={16} />
                     </button>
                   ) : (
@@ -1937,9 +1967,11 @@ interface SeatProps {
   onDelete: () => void;
   isDeleteMode: boolean;
   onCopy: () => void;
+  onResize: (width: number, height: number) => void;
+  isPrintMode: boolean;
 }
 
-function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy }: SeatProps) {
+function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy, onResize, isPrintMode }: SeatProps) {
   const config = STATUS_CONFIG[seat.status];
   
   return (
@@ -2013,6 +2045,47 @@ function Seat({ seat, group, onDragEnd, onDoubleClick, onDelete, isDeleteMode, o
           </button>
         </div>
       )}
+
+      {/* Resize Handles */}
+      {!isDeleteMode && !isPrintMode && (
+        <>
+          {/* Right Edge */}
+          <motion.div
+            drag="x"
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(seat.width + info.offset.x, seat.height);
+            }}
+            className="absolute top-1 -right-1 w-2 h-[calc(100%-8px)] cursor-ew-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ x: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Bottom Edge */}
+          <motion.div
+            drag="y"
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(seat.width, seat.height + info.offset.y);
+            }}
+            className="absolute -bottom-1 left-1 w-[calc(100%-8px)] h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Bottom-Right Corner */}
+          <motion.div
+            drag
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(seat.width + info.offset.x, seat.height + info.offset.y);
+            }}
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ x: 0, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-sm shadow-sm" />
+          </motion.div>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -2025,9 +2098,11 @@ interface RoomElementProps {
   onDelete: () => void;
   isDeleteMode: boolean;
   onCopy: () => void;
+  onResize: (width: number, height: number) => void;
+  isPrintMode: boolean;
 }
 
-function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy }: RoomElementProps) {
+function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy, onResize, isPrintMode }: RoomElementProps) {
   const getStyles = () => {
     switch (element.type) {
       case 'door':
@@ -2104,6 +2179,47 @@ function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDelete
         <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center rounded-lg pointer-events-none">
           <Trash2 size={16} className="text-red-600 opacity-50" />
         </div>
+      )}
+
+      {/* Resize Handles */}
+      {!isDeleteMode && !isPrintMode && (
+        <>
+          {/* Right Edge */}
+          <motion.div
+            drag="x"
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(element.width + info.offset.x, element.height);
+            }}
+            className="absolute top-1 -right-1 w-2 h-[calc(100%-8px)] cursor-ew-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ x: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Bottom Edge */}
+          <motion.div
+            drag="y"
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(element.width, element.height + info.offset.y);
+            }}
+            className="absolute -bottom-1 left-1 w-[calc(100%-8px)] h-2 cursor-ns-resize z-30 hover:bg-blue-500/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Bottom-Right Corner */}
+          <motion.div
+            drag
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onResize(element.width + info.offset.x, element.height + info.offset.y);
+            }}
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ x: 0, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-sm shadow-sm" />
+          </motion.div>
+        </>
       )}
     </motion.div>
   );
