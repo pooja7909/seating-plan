@@ -26,6 +26,7 @@ export interface RoomElement {
   width: number;
   height: number;
   label?: string;
+  color?: string;
 }
 
 export interface ClassroomState {
