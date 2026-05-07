@@ -53,6 +53,24 @@ const DEFAULT_GROUPS: StudentGroup[] = [
   { id: 'group-4', name: 'Group D', color: '#f59e0b' },
 ];
 
+const DRAFT_LAYOUT = {
+  seats: Array.from({ length: 10 }).map((_, i) => ({
+    id: `seat-${i}-${Date.now()}`,
+    studentName: '',
+    status: 'empty' as StudentStatus,
+    x: 100 + (i % 5) * 160,
+    y: 200 + Math.floor(i / 5) * 140,
+    width: 120,
+    height: 80
+  })),
+  roomElements: [
+    { id: 'element-board', type: 'board' as ElementType, x: 300, y: 40, width: 400, height: 60, label: 'Blackboard', color: '#ffffff' },
+    { id: 'element-screen', type: 'other' as ElementType, x: 720, y: 40, width: 200, height: 60, label: 'Smart Screen' },
+    { id: 'element-door', type: 'door' as ElementType, x: 20, y: 650, width: 100, height: 60, label: 'Door' },
+    { id: 'element-window', type: 'window' as ElementType, x: 1120, y: 200, width: 60, height: 300, label: 'Window' }
+  ]
+};
+
 const STATUS_CONFIG: Record<StudentStatus, { label: string; icon: React.ReactNode; color: string; bg: string; border: string; text: string }> = {
   empty: { 
     label: 'Empty', 
@@ -116,9 +134,61 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState<ClassroomState[]>([]);
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
-  const [clipboard, setClipboard] = useState<Partial<SeatData> | null>(null);
+  const [clipboard, setClipboard] = useState<{ type: 'seat' | 'element', data: any } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
+
+  // Persistence Key
+  const getStorageKey = () => `seating-plan-${yearGroup}-${subject}-${classCode || 'default'}`;
+
+  // Load state when class metadata changes
+  useEffect(() => {
+    const key = getStorageKey();
+    const saved = localStorage.getItem(key);
+    
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSeats(parsed.seats || []);
+        setRoomElements(parsed.roomElements || []);
+        setGroups(parsed.groups || DEFAULT_GROUPS);
+      } catch (e) {
+        console.error('Failed to load saved state', e);
+      }
+    } else {
+      // Clear if no data exists for this class
+      if (!isInitialLoad.current) {
+        setSeats([]);
+        setRoomElements([]);
+        setGroups(DEFAULT_GROUPS);
+      }
+    }
+    isInitialLoad.current = false;
+  }, [yearGroup, subject, classCode]);
+
+  // Save state when it changes
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    const key = getStorageKey();
+    const state = {
+      seats,
+      roomElements,
+      groups
+    };
+    localStorage.setItem(key, JSON.stringify(state));
+  }, [seats, roomElements, groups]);
+
+  const loadDraft = () => {
+    saveToHistory();
+    // Use fresh IDs for seats to avoid duplicates if loaded multiple times
+    const draftSeats = DRAFT_LAYOUT.seats.map(s => ({ ...s, id: `seat-${Math.random().toString(36).substr(2, 9)}` }));
+    setSeats(draftSeats);
+    setRoomElements(DRAFT_LAYOUT.roomElements);
+    setGroups(DEFAULT_GROUPS);
+    setToast({ message: 'Default draft layout loaded!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const getCurrentState = (): ClassroomState => ({
     seats,
@@ -169,30 +239,65 @@ export default function App() {
 
   const copySeat = (seat: SeatData) => {
     setClipboard({
-      studentName: seat.studentName,
-      status: seat.status,
-      groupId: seat.groupId,
-      width: seat.width,
-      height: seat.height
+      type: 'seat',
+      data: {
+        studentName: seat.studentName,
+        status: seat.status,
+        groupId: seat.groupId,
+        width: seat.width,
+        height: seat.height
+      }
     });
     setToast({ message: 'Seat copied to clipboard!', type: 'success' });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const pasteSeat = (x: number, y: number) => {
+  const copyElement = (element: RoomElement) => {
+    setClipboard({
+      type: 'element',
+      data: {
+        type: element.type,
+        width: element.width,
+        height: element.height,
+        label: element.label,
+        color: element.color
+      }
+    });
+    setToast({ message: 'Element copied to clipboard!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const pasteItem = (x: number, y: number) => {
     if (!clipboard) return;
     saveToHistory();
-    const newSeat: SeatData = {
-      id: `seat-${Date.now()}`,
-      studentName: clipboard.studentName || '',
-      status: clipboard.status || 'empty',
-      groupId: clipboard.groupId,
-      x: snapToGrid ? Math.round(x / GRID_SIZE) * GRID_SIZE : x,
-      y: snapToGrid ? Math.round(y / GRID_SIZE) * GRID_SIZE : y,
-      width: clipboard.width || 100,
-      height: clipboard.height || 70
-    };
-    setSeats([...seats, newSeat]);
+    const finalX = snapToGrid ? Math.round(x / GRID_SIZE) * GRID_SIZE : x;
+    const finalY = snapToGrid ? Math.round(y / GRID_SIZE) * GRID_SIZE : y;
+
+    if (clipboard.type === 'seat') {
+      const newSeat: SeatData = {
+        id: `seat-${Date.now()}`,
+        studentName: clipboard.data.studentName || '',
+        status: clipboard.data.status || 'empty',
+        groupId: clipboard.data.groupId,
+        x: finalX,
+        y: finalY,
+        width: clipboard.data.width || 100,
+        height: clipboard.data.height || 70
+      };
+      setSeats([...seats, newSeat]);
+    } else {
+      const newElement: RoomElement = {
+        id: `element-${Date.now()}`,
+        type: clipboard.data.type,
+        x: finalX,
+        y: finalY,
+        width: clipboard.data.width,
+        height: clipboard.data.height,
+        label: clipboard.data.label,
+        color: clipboard.data.color
+      };
+      setRoomElements([...roomElements, newElement]);
+    }
   };
 
   const exportTemplate = () => {
@@ -613,6 +718,14 @@ export default function App() {
                 Reset
               </button>
 
+              <button 
+                onClick={loadDraft}
+                className="flex items-center gap-2 bg-blue-600 border-2 border-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all shadow-md active:scale-95"
+              >
+                <RotateCcw size={16} />
+                <span>Load Draft</span>
+              </button>
+
               <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
               <button 
@@ -681,7 +794,7 @@ export default function App() {
                 <button 
                   onClick={() => {
                     // Paste in the center of the visible area or at a default offset
-                    pasteSeat(100, 100);
+                    pasteItem(100, 100);
                     setToast({ message: 'Seat pasted!', type: 'success' });
                     setTimeout(() => setToast(null), 2000);
                   }}
@@ -835,7 +948,7 @@ export default function App() {
               e.preventDefault();
               const rect = canvasRef.current?.getBoundingClientRect();
               if (rect) {
-                pasteSeat(e.clientX - rect.left, e.clientY - rect.top);
+                pasteItem(e.clientX - rect.left, e.clientY - rect.top);
               }
             }
           }}
@@ -871,6 +984,7 @@ export default function App() {
               onDoubleClick={() => handleDoubleClick(element, false)}
               onDelete={() => deleteItem(element.id, false)}
               isDeleteMode={isDeleteMode}
+              onCopy={() => copyElement(element)}
             />
           ))}
 
@@ -1103,16 +1217,55 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Custom Color</label>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="color" 
+                    value={editingElement.color || (editingElement.type === 'board' ? '#1e293b' : '#e2e8f0')}
+                    onChange={(e) => setEditingElement({ ...editingElement, color: e.target.value })}
+                    className="w-10 h-10 rounded-lg border-none cursor-pointer overflow-hidden p-0 bg-transparent"
+                  />
+                  <input 
+                    type="text" 
+                    value={editingElement.color || ''}
+                    onChange={(e) => setEditingElement({ ...editingElement, color: e.target.value })}
+                    className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs uppercase"
+                    placeholder="Auto by type"
+                  />
+                  {editingElement.color && (
+                    <button 
+                      onClick={() => setEditingElement({ ...editingElement, color: undefined })}
+                      className="text-[10px] text-blue-600 font-bold hover:underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <button 
-                onClick={() => deleteItem(editingElement.id, false)}
-                className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-semibold transition-colors"
-              >
-                <Trash2 size={18} />
-                Delete Element
-              </button>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => deleteItem(editingElement.id, false)}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-semibold transition-colors"
+                >
+                  <Trash2 size={18} />
+                  Delete
+                </button>
+                <button 
+                  onClick={() => {
+                    copyElement(editingElement);
+                    setIsElementModalOpen(false);
+                  }}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-colors"
+                >
+                  <Copy size={18} />
+                  Copy
+                </button>
+              </div>
               <div className="flex gap-3">
                 <button 
                   onClick={() => setIsElementModalOpen(false)}
@@ -1376,9 +1529,10 @@ interface RoomElementProps {
   onDoubleClick: () => void;
   onDelete: () => void;
   isDeleteMode: boolean;
+  onCopy: () => void;
 }
 
-function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDeleteMode }: RoomElementProps) {
+function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDeleteMode, onCopy }: RoomElementProps) {
   const getStyles = () => {
     switch (element.type) {
       case 'door':
@@ -1395,6 +1549,24 @@ function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDelete
         return 'bg-white border-slate-200';
     }
   };
+
+  const style: React.CSSProperties = { 
+    width: element.width, 
+    height: element.height 
+  };
+  
+  if (element.color) {
+    style.backgroundColor = element.color;
+    // Simple luminance check for text contrast
+    // Using a basic heuristic for white/dark text
+    const color = element.color.replace('#', '');
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    style.color = luminance > 0.5 ? '#1e293b' : 'white';
+    style.borderColor = luminance > 0.8 ? '#cbd5e1' : (element.color === '#ffffff' ? '#cbd5e1' : 'transparent');
+  }
 
   return (
     <motion.div
@@ -1413,10 +1585,26 @@ function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDelete
       onClick={() => {
         if (isDeleteMode) onDelete();
       }}
-      className={`absolute flex items-center justify-center rounded-lg border-2 text-[10px] font-bold uppercase tracking-widest cursor-grab active:cursor-grabbing z-0 ${getStyles()} ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
-      style={{ width: element.width, height: element.height }}
+      className={`absolute flex items-center justify-center rounded-lg border-2 text-[10px] font-bold uppercase tracking-widest cursor-grab active:cursor-grabbing z-0 group ${!element.color ? getStyles() : ''} ${isDeleteMode ? 'hover:border-red-500 hover:bg-red-50' : ''}`}
+      style={style}
     >
       {element.label || element.type}
+      
+      {!isDeleteMode && (
+        <div className="absolute -top-2 -left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity print:hidden z-20">
+          <button 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              onCopy(); 
+            }}
+            className="p-1.5 bg-blue-600 border border-blue-700 rounded-lg shadow-lg text-white hover:bg-blue-700 transition-colors"
+            title="Copy Element"
+          >
+            <Copy size={12} />
+          </button>
+        </div>
+      )}
+
       {isDeleteMode && (
         <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center rounded-lg pointer-events-none">
           <Trash2 size={16} className="text-red-600 opacity-50" />
