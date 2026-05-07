@@ -64,7 +64,7 @@ const DRAFT_LAYOUT = {
     height: 80
   })),
   roomElements: [
-    { id: 'element-board', type: 'board' as ElementType, x: 300, y: 40, width: 400, height: 60, label: 'Blackboard', color: '#ffffff' },
+    { id: 'element-board', type: 'board' as ElementType, x: 300, y: 40, width: 400, height: 60, label: 'Whiteboard', color: '#ffffff' },
     { id: 'element-screen', type: 'other' as ElementType, x: 720, y: 40, width: 200, height: 60, label: 'Smart Screen' },
     { id: 'element-door', type: 'door' as ElementType, x: 20, y: 650, width: 100, height: 60, label: 'Door' },
     { id: 'element-window', type: 'window' as ElementType, x: 1120, y: 200, width: 60, height: 300, label: 'Window' }
@@ -136,6 +136,7 @@ export default function App() {
   const [redoStack, setRedoStack] = useState<ClassroomState[]>([]);
   const [clipboard, setClipboard] = useState<{ type: 'seat' | 'element', data: any } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(true);
   const canvasRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
@@ -451,9 +452,9 @@ export default function App() {
       type,
       x: 50,
       y: 50,
-      width: type === 'aisle' ? 40 : 100,
-      height: type === 'aisle' ? 200 : 40,
-      label: type.charAt(0).toUpperCase() + type.slice(1)
+      width: type === 'board' ? 300 : (type === 'aisle' ? 40 : 100),
+      height: type === 'board' ? 60 : (type === 'aisle' ? 200 : 40),
+      label: type === 'board' ? 'Whiteboard' : type.charAt(0).toUpperCase() + type.slice(1)
     };
     setRoomElements([...roomElements, newElement]);
   };
@@ -809,12 +810,23 @@ export default function App() {
 
           {/* Metadata Dropdowns */}
           <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-4">
+            <button 
+              onClick={() => setIsWelcomeModalOpen(true)}
+              className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-bold hover:bg-slate-900 transition-all shadow-sm"
+            >
+              <Settings2 size={16} />
+              Setup Class
+            </button>
+
+            <div className="h-6 w-[1px] bg-slate-200 mx-1 hidden md:block" />
+
             <div className="relative group">
               <select 
                 value={yearGroup}
                 onChange={(e) => {
                   saveToHistory();
                   setYearGroup(e.target.value);
+                  setIsWelcomeModalOpen(true);
                 }}
                 className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
               >
@@ -829,6 +841,7 @@ export default function App() {
                 onChange={(e) => {
                   saveToHistory();
                   setSubject(e.target.value);
+                  setIsWelcomeModalOpen(true);
                 }}
                 className="appearance-none bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 pr-10 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
               >
@@ -842,7 +855,15 @@ export default function App() {
                 type="text"
                 value={classCode}
                 onFocus={() => saveToHistory()}
-                onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  setClassCode(e.target.value.toUpperCase());
+                }}
+                onBlur={() => {
+                  if (classCode) setIsWelcomeModalOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setIsWelcomeModalOpen(true);
+                }}
                 placeholder="CLASS CODE"
                 className="bg-white border-2 border-slate-200 rounded-lg px-3 md:px-4 py-2 text-xs md:text-sm font-bold outline-none focus:border-blue-500 transition-all w-24 md:w-32 uppercase placeholder:text-slate-300"
               />
@@ -851,6 +872,9 @@ export default function App() {
             <div className="h-6 w-[1px] bg-slate-300 mx-1 hidden md:block" />
 
             <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => addRoomElement('board')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
+                <Monitor size={14} /> <span className="hidden sm:inline">+ Whiteboard</span>
+              </button>
               <button onClick={() => addRoomElement('door')} className="flex items-center gap-2 px-2 md:px-3 py-2 bg-white border-2 border-slate-200 rounded-lg text-[10px] md:text-xs font-bold hover:bg-slate-50 transition-all">
                 <DoorOpen size={14} /> <span className="hidden sm:inline">+ Door</span>
               </button>
@@ -1429,6 +1453,88 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Welcome Setup Modal */}
+      {isWelcomeModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-white/20"
+          >
+            <div className="p-8 md:p-10">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                  <Settings2 size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">Classroom Setup</h2>
+                  <p className="text-slate-500 text-sm font-medium">Configure your plan before starting</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Year Group</label>
+                    <div className="relative group">
+                      <select 
+                        value={yearGroup}
+                        onChange={(e) => setYearGroup(e.target.value)}
+                        className="w-full appearance-none bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+                      >
+                        {YEAR_GROUPS.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-blue-500 transition-colors" size={18} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Subject</label>
+                    <div className="relative group">
+                      <select 
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        className="w-full appearance-none bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all cursor-pointer"
+                      >
+                        {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-blue-500 transition-colors" size={18} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Class Code / Group Name</label>
+                  <input 
+                    type="text"
+                    value={classCode}
+                    onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+                    placeholder="E.G. 10B/MA1"
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:border-blue-500 transition-all uppercase placeholder:text-slate-300"
+                  />
+                  <p className="text-[10px] text-slate-400 ml-1 font-medium italic">Data is automatically saved per Class Code.</p>
+                </div>
+              </div>
+
+              <div className="mt-10 flex gap-4">
+                <button 
+                  onClick={() => setIsWelcomeModalOpen(false)}
+                  className="flex-1 bg-slate-800 text-white rounded-2xl px-6 py-4 font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+                >
+                  Start Seating Plan
+                  <Plus size={18} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 px-8 py-4 border-t border-slate-100">
+              <p className="text-[10px] text-slate-500 font-bold text-center">
+                TIP: You can change these details later in the header dropdowns.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1542,7 +1648,7 @@ function RoomElementComp({ element, onDragEnd, onDoubleClick, onDelete, isDelete
       case 'aisle':
         return 'bg-slate-100 border-slate-200 text-slate-400 border-dashed';
       case 'board':
-        return 'bg-slate-800 border-slate-900 text-white';
+        return 'bg-white border-slate-300 text-slate-800 shadow-sm';
       case 'other':
         return 'bg-white border-slate-300 text-slate-600 border-dashed';
       default:
