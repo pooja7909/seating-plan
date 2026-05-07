@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "SeatingPlan": {
+      "title": "Seating Plan",
+      "description": "A complete seating plan including seats and room layout",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "yearGroup": { "type": "string" },
+        "subject": { "type": "string" },
+        "classCode": { "type": "string" },
+        "seats": { "type": "array" },
+        "roomElements": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" },
+        "pin": { "type": "string" }
+      },
+      "required": ["yearGroup", "subject", "seats", "roomElements", "updatedAt", "ownerId"]
+    }
+  },
+  "firestore": {
+    "seatingPlans": {
+      "schema": "SeatingPlan",
+      "description": "Collection of all saved seating plans"
+    }
+  }
+}
