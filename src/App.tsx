@@ -42,6 +42,8 @@ import {
   CloudUpload,
   CloudDownload,
   RefreshCw,
+  FileJson,
+  Upload,
   Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
@@ -125,6 +127,43 @@ const STATUS_CONFIG: Record<StudentStatus, { label: string; icon: React.ReactNod
     text: 'text-violet-700' 
   },
 };
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error Details:', JSON.stringify(errInfo, null, 2));
+  return errInfo;
+}
 
 export default function App() {
   const [seats, setSeats] = useState<SeatData[]>([]);
@@ -232,7 +271,7 @@ export default function App() {
       setLastSynced(new Date());
       setToast({ message: 'Synced to Cloud!', type: 'success' });
     } catch (error) {
-      console.error('Cloud Sync Error:', error);
+      handleFirestoreError(error, OperationType.WRITE, `seatingPlans/${getCloudKey()}`);
       setToast({ message: 'Cloud Sync Failed', type: 'info' });
     } finally {
       setIsSyncing(false);
@@ -265,7 +304,7 @@ export default function App() {
         setToast({ message: 'No cloud plan found for this class', type: 'info' });
       }
     } catch (error) {
-      console.error('Cloud Load Error:', error);
+      handleFirestoreError(error, OperationType.GET, `seatingPlans/${getCloudKey()}`);
       setToast({ message: 'Failed to load from cloud', type: 'info' });
     } finally {
       setIsSyncing(false);
@@ -287,7 +326,7 @@ export default function App() {
         setTimeout(() => setToast(null), 5000);
       }
     } catch (error) {
-      console.error('Check Cloud Plan Error:', error);
+      handleFirestoreError(error, OperationType.GET, `seatingPlans/${getCloudKey()}`);
     }
   };
 
@@ -914,8 +953,73 @@ export default function App() {
     }
   };
 
+  const handleExportJSON = () => {
+    const data = {
+      seats,
+      roomElements,
+      groups,
+      yearGroup,
+      subject,
+      classCode,
+      version: '1.0',
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const fileName = `SeatingPlan-${yearGroup}-${classCode || 'NoCode'}-${subject}`.replace(/[/\\?%*:|"<>]/g, '-');
+    link.href = url;
+    link.download = `${fileName}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: 'Plan exported as JSON file!', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        
+        // Basic validation
+        if (!data.seats || !Array.isArray(data.seats)) {
+          throw new Error('Invalid file format: Missing seats data');
+        }
+
+        setSeats(data.seats);
+        if (data.roomElements) setRoomElements(data.roomElements);
+        if (data.groups) setGroups(data.groups);
+        if (data.yearGroup) setYearGroup(data.yearGroup);
+        if (data.subject) setSubject(data.subject);
+        if (data.classCode) setClassCode(data.classCode);
+        
+        setToast({ message: 'Plan imported successfully!', type: 'success' });
+        saveToHistory();
+        setTimeout(() => setToast(null), 3000);
+      } catch (err: any) {
+        console.error('Import Error:', err);
+        setToast({ message: `Import Failed: ${err.message || 'Invalid JSON file'}`, type: 'info' });
+        setTimeout(() => setToast(null), 4000);
+      }
+      // Reset input so the same file can be selected again
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className={`min-h-screen bg-[#f0ede8] text-[#1a1816] font-mono selection:bg-blue-100 print:bg-white print:text-black ${isPrintMode ? 'bg-white' : ''} print:h-auto print:block print:overflow-visible`}>
+      <input 
+        type="file" 
+        id="json-import-input" 
+        accept=".json" 
+        onChange={handleImportJSON} 
+        className="hidden" 
+      />
       <style>
         {`
           @media print {
@@ -980,6 +1084,26 @@ export default function App() {
                 <Plus size={18} />
                 <span className="hidden sm:inline">ADD SEAT</span>
                 <span className="sm:hidden">SEAT</span>
+              </button>
+
+              <button 
+                onClick={saveAsMyRoomTemplate}
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-lg shadow-amber-100 active:scale-95"
+                title="Save current layout as your master template (clears names)"
+              >
+                <Save size={18} />
+                <span className="hidden sm:inline">SAVE DRAFT</span>
+                <span className="sm:hidden">SAVE</span>
+              </button>
+
+              <button 
+                onClick={applyMyRoomTemplate}
+                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-black tracking-tight transition-all shadow-lg shadow-indigo-100 active:scale-95"
+                title="Apply your saved master template to this class"
+              >
+                <LayoutGrid size={18} />
+                <span className="hidden sm:inline">USE DRAFT</span>
+                <span className="sm:hidden">USE</span>
               </button>
 
               {clipboard?.type === 'seat' && (
@@ -1106,6 +1230,25 @@ export default function App() {
                       <ImageIcon size={14} />
                     </div>
                     Save as JPEG
+                  </button>
+                  <div className="h-[1px] bg-slate-100 mx-2" />
+                  <button 
+                    onClick={handleExportJSON}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="p-1.5 bg-amber-50 rounded-lg text-amber-600">
+                      <FileJson size={14} />
+                    </div>
+                    Export as JSON
+                  </button>
+                  <button 
+                    onClick={() => document.getElementById('json-import-input')?.click()}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
+                      <Upload size={14} />
+                    </div>
+                    Import JSON
                   </button>
                 </div>
               </div>
