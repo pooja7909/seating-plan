@@ -2,6 +2,10 @@
 
 @layer base {
   @media print {
+    @page {
+      size: auto; /* Allow CSS to control orientation */
+      margin: 0mm;
+    }
     html, body {
       height: 100% !important;
       width: 100% !important;
@@ -25,25 +29,23 @@
     /* Scale content to fit A4 width */
     .print-scale-portrait {
       transform-origin: top center;
-      transform: scale(0.65) !important; /* Scale 1200px to ~780px (approx A4 width minus safe zone) */
-      margin-left: auto !important;
-      margin-right: auto !important;
-      margin-top: 15mm !important;
+      transform: scale(0.68) !important; /* Scale 1200px to fit A4 width (~210mm) */
+      margin: 15mm auto !important;
       display: block !important;
       width: 1200px !important;
       min-width: 1200px !important;
       border: none !important;
+      box-shadow: none !important;
     }
     .print-scale-landscape {
       transform-origin: top center;
-      transform: scale(0.9) !important; /* Scale 1200px for A4 Landscape */
-      margin-left: auto !important;
-      margin-right: auto !important;
-      margin-top: 15mm !important;
+      transform: scale(0.92) !important; /* Scale 1200px for A4 Landscape (~297mm) */
+      margin: 15mm auto !important;
       display: block !important;
       width: 1200px !important;
       min-width: 1200px !important;
       border: none !important;
+      box-shadow: none !important;
     }
     /* Hide scrollbars in print mode preview to avoid confusion */
     .no-scrollbar::-webkit-scrollbar {
@@ -52,6 +54,10 @@
     .no-scrollbar {
       -ms-overflow-style: none;
       scrollbar-width: none;
+    }
+    /* Hide some elements during print that might still show up */
+    .print-hidden {
+      display: none !important;
     }
   }
 }
